@@ -60,14 +60,14 @@ class BlobDetector:
         aspect_ratio = image_width / image_height
 
         if CANVAS_WIDTH / aspect_ratio <= CANVAS_HEIGHT:
-            new_width = int(CANVAS_WIDTH * self.display_scale_factor)
-            new_height = int(CANVAS_WIDTH / aspect_ratio * self.display_scale_factor)
+            new_width = CANVAS_WIDTH
+            new_height = int(CANVAS_WIDTH / aspect_ratio)
         else:
-            new_height = int(CANVAS_HEIGHT * self.display_scale_factor)
-            new_width = int(CANVAS_HEIGHT * aspect_ratio * self.display_scale_factor)
+            new_height = CANVAS_HEIGHT
+            new_width = int(CANVAS_HEIGHT * aspect_ratio)
 
-        zoom_width = int(new_width / self.display_scale_factor)
-        zoom_height = int(new_height / self.display_scale_factor)
+        zoom_width = int(image_width / self.display_scale_factor)
+        zoom_height = int(image_height / self.display_scale_factor)
         x_center, y_center = self.zoom_center
 
         x_start = max(0, int(x_center - zoom_width // 2))
@@ -76,7 +76,7 @@ class BlobDetector:
         y_end = min(image_height, int(y_center + zoom_height // 2))
 
         cropped_image = self.blobs[y_start:y_end, x_start:x_end]
-        resized_image = cv2.resize(cropped_image, (new_width, new_height))
+        resized_image = cv2.resize(cropped_image, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
 
         return resized_image
 

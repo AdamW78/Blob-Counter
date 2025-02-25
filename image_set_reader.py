@@ -115,13 +115,18 @@ class ImageSetReader(QWidget):
             int(self.max_area_input.text()),
             int(self.min_circularity_input.text()) / 100.0
         )
+        self.blob_detector.display_scale_factor = min(
+            self.image_label.width() / self.blob_detector.image.shape[1],
+            self.image_label.height() / self.blob_detector.image.shape[0]
+        )
         self.update_image_label()
 
     def update_image_label(self):
         self.blob_detector.update_display_image()
         pixmap = self.blob_detector.get_display_image_pixmap()
         self.image_label.setPixmap(pixmap)
-        self.image_label.setScaledContents(True)
+        self.image_label.setScaledContents(True)  # Allow the pixmap to scale with the label
+        self.image_label.setFixedSize(self.image_label.size())  # Ensure the label size is fixed
         self.image_label.adjustSize()
 
     def eventFilter(self, source, event):
