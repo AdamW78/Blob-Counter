@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 from PySide6 import QtCore
 from PySide6.QtGui import QImage, QPixmap
-from PySide6.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QVBoxLayout, QWidget, QHBoxLayout, QLabel, QSlider, QLineEdit
+from PySide6.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QVBoxLayout, QWidget, \
+    QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton
 from PySide6.QtCore import Qt, QPointF, QEvent
 
 from logger import LOGGER
@@ -62,6 +63,11 @@ class BlobDetector(QWidget):
         self.layout.addLayout(self.max_area_slider)
         self.layout.addLayout(self.min_circularity_slider)
 
+        # Add the "Recount Blobs" button
+        self.recount_button = QPushButton('Recount Blobs')
+        self.recount_button.clicked.connect(self.update_blob_count)
+        self.layout.addWidget(self.recount_button)
+
         self.graphics_view = QGraphicsView(self)
         self.graphics_view.setFixedSize(GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT)
         self.graphics_scene = QGraphicsScene(self)
@@ -77,8 +83,36 @@ class BlobDetector(QWidget):
         self.graphics_view.viewport().installEventFilter(self)
         self.installEventFilter(self)
 
-        # Fit the image to the view
-        # self.fit_image_to_view()
+    def create_slider_with_input(self, name, min_value, max_value, initial_value):
+        layout = QHBoxLayout()
+        label = QLabel(name)
+        layout.addWidget(label)
+        slider = QSlider(Qt.Horizontal)
+        slider.setRange(min_value, max_value)
+        slider.setValue(initial_value)
+        layout.addWidget(slider)
+        input_field = QLineEdit(str(initial_value))
+        input_field.setFixedWidth(50)
+        layout.addWidget(input_field)
+
+        slider.valueChanged.connect(lambda value: self.update_slider_input(slider, input_field, value))
+        input_field.editingFinished.connect(lambda: self.update_input_slider(input_field, slider, min_value))
+
+        return layout, input_field
+
+    def update_slider_input(self, slider, input_field, value):
+        input_field.setText(str(value))
+
+    def update_input_slider(self, input_field, slider, min_value):
+        slider.setValue(int(input_field.text()) if input_field.text().isdigit() else min_value)
+
+    def update_blob_count(self):
+        self.params.minArea = int(self.min_area_input.text())
+        self.params.maxArea = int(self.max_area_input.text())
+        self.params.minCircularity = int(self.min_circularity_input.text()) / 100.0
+        self.detector = cv2.SimpleBlobDetector_create(self.params)
+        self.keypoints = list(self.detect_blobs())
+        self.update_display_image()
 
     def update_display_image(self):
         self.blobs = self.draw_blobs()
