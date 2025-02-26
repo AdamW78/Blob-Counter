@@ -27,16 +27,24 @@ GRAPHICS_VIEW_HEIGHT = 600
 GRAPHICS_VIEW_WIDTH = 800
 
 class BlobDetector(QWidget):
-    def __init__(self, image_path, display_scale_factor=DEFAULT_DISPLAY_SCALE_FACTOR):
+    def __init__(self, image_path=None, display_scale_factor=DEFAULT_DISPLAY_SCALE_FACTOR):
         super().__init__()
         self.image_path = image_path
         self.display_scale_factor = display_scale_factor
-        self.image = self.load_image()
-        self.gray_image = self.convert_to_grayscale()
-        self.params = self.create_blob_detector_params()
-        self.detector = cv2.SimpleBlobDetector_create(self.params)
-        self.keypoints = list(self.detect_blobs())
-        self.blobs = self.draw_blobs()
+        if image_path is not None:
+            self.image = self.load_image()
+            self.gray_image = self.convert_to_grayscale()
+            self.params = self.create_blob_detector_params()
+            self.detector = cv2.SimpleBlobDetector_create(self.params)
+            self.keypoints = list(self.detect_blobs())
+            self.blobs = self.draw_blobs()
+        else:
+            self.image = None
+            self.gray_image = None
+            self.params = None
+            self.detector = None
+            self.keypoints = None
+            self.blobs = None
         self.current_scale_factor = 1.0
         self.undo_redo_tracker = UndoRedoTracker()
         self.initUI()
@@ -51,7 +59,10 @@ class BlobDetector(QWidget):
         self.layout = QVBoxLayout(self)
 
         # Add label to display the number of keypoints
-        self.keypoint_count_label = QLabel(f'Keypoints: {len(self.keypoints)}')
+        if self.keypoints is not None:
+            self.keypoint_count_label = QLabel(f'Keypoints: {len(self.keypoints)}')
+        else:
+            self.keypoint_count_label = QLabel('Keypoints: 0')
         self.layout.addWidget(self.keypoint_count_label)
 
         # Add sliders and text inputs
@@ -65,6 +76,8 @@ class BlobDetector(QWidget):
 
         # Add the "Recount Blobs" button
         self.recount_button = QPushButton('Recount Blobs')
+        if self.keypoints is None:
+            self.recount_button.setEnabled(False)
         self.recount_button.clicked.connect(self.update_blob_count)
         self.layout.addWidget(self.recount_button)
 
@@ -77,7 +90,9 @@ class BlobDetector(QWidget):
         self.pixmap_item = QGraphicsPixmapItem()
         self.graphics_scene.addItem(self.pixmap_item)
 
-        self.update_display_image()
+        if self.image is not None:
+            self.update_display_image()
+            # self.fit_image_to_view()
 
         self.graphics_view.setDragMode(QGraphicsView.NoDrag)
         self.graphics_view.viewport().installEventFilter(self)
@@ -192,6 +207,8 @@ class BlobDetector(QWidget):
             self.current_scale_factor = new_scale_factor
 
     def eventFilter(self, source, event):
+        if self.image is None:
+            return super().eventFilter(source, event)
         if event.type() == QEvent.MouseButtonPress:
             if event.button() == Qt.LeftButton:
                 self.mouse_press_position = event.position()
