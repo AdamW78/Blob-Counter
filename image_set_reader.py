@@ -1,4 +1,5 @@
 import os
+import re
 
 import cv2
 from PySide6.QtWidgets import QListWidget, QFileDialog, QScrollArea, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QApplication, QLabel, QSlider, QLineEdit, QGroupBox
@@ -21,6 +22,9 @@ class ImageSetBlobDetector(QWidget):
 
         # Add universal blob detector settings
         self.create_universal_blob_detector_settings()
+
+        # Add image list widget
+        self.create_image_list_widget()
 
         # Add blob detector UI
         self.blob_detector_widget = BlobDetector()
@@ -69,26 +73,46 @@ class ImageSetBlobDetector(QWidget):
         self.layout.addWidget(self.controls_group_box)
 
     def create_image_list_widget(self):
+        self.image_list_group_box = QGroupBox("Image List")
+        self.image_list_layout = QVBoxLayout()
         self.image_list_widget = QListWidget()
         self.image_list_widget.setMinimumWidth(IMAGE_LIST_WIDGET_WIDTH)
         self.image_list_widget.setMaximumWidth(IMAGE_LIST_WIDGET_WIDTH)
         self.image_list_widget.itemClicked.connect(self.display_selected_image)
-        self.layout.addWidget(self.image_list_widget)
+        self.image_list_layout.addWidget(self.image_list_widget)
+        self.image_list_group_box.setLayout(self.image_list_layout)
+        self.layout.addWidget(self.image_list_group_box)
 
     def open_folder(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
         if folder_path:
             self.load_images_from_folder(folder_path)
-            self.image_list_widget.itemAt(0).setSelected(True)
 
     def load_images_from_folder(self, folder_path):
         self.image_paths = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        self.image_paths.sort(key=self.sort_key)
         self.image_list_widget.clear()
         self.blob_detectors = []
         for image_path in self.image_paths:
             detector = BlobDetector(image_path)
             self.blob_detectors.append(detector)
             self.image_list_widget.addItem(f"{os.path.basename(image_path)} - Keypoints: {len(detector.keypoints)}")
+
+        # Automatically select the top image
+        if self.image_list_widget.count() > 0:
+            self.image_list_widget.setCurrentRow(0)
+            self.display_selected_image(self.image_list_widget.item(0))
+
+    def sort_key(self, filename):
+        base_name = os.path.basename(filename)
+        parts = re.split(r'[_\s]', base_name)
+        numbers = [int(part) for part in parts if part.isdigit()]
+        if len(numbers) >= 2:
+            return (numbers[0], numbers[1])
+        elif len(numbers) == 1:
+            return (numbers[0],)
+        else:
+            return base_name
 
     def display_selected_image(self, item):
         selected_image_path = os.path.join(os.path.dirname(self.image_paths[0]), item.text().split(' - ')[0])

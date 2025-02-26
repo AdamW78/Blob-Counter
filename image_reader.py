@@ -98,23 +98,6 @@ class BlobDetector(QWidget):
         self.graphics_view.viewport().installEventFilter(self)
         self.installEventFilter(self)
 
-    def create_slider_with_input(self, name, min_value, max_value, initial_value):
-        layout = QHBoxLayout()
-        label = QLabel(name)
-        layout.addWidget(label)
-        slider = QSlider(Qt.Horizontal)
-        slider.setRange(min_value, max_value)
-        slider.setValue(initial_value)
-        layout.addWidget(slider)
-        input_field = QLineEdit(str(initial_value))
-        input_field.setFixedWidth(50)
-        layout.addWidget(input_field)
-
-        slider.valueChanged.connect(lambda value: self.update_slider_input(slider, input_field, value))
-        input_field.editingFinished.connect(lambda: self.update_input_slider(input_field, slider, min_value))
-
-        return layout, input_field
-
     def update_slider_input(self, slider, input_field, value):
         input_field.setText(str(value))
 
@@ -151,10 +134,12 @@ class BlobDetector(QWidget):
         input_field = QLineEdit(str(initial_value))
         input_field.setFixedWidth(50)
         layout.addWidget(input_field)
-
-        slider.valueChanged.connect(lambda value: input_field.setText(str(value)))
-        input_field.editingFinished.connect(lambda: slider.setValue(int(input_field.text()) if input_field.text().isdigit() else min_value))
-
+        if self.image is not None:
+            slider.valueChanged.connect(lambda value: input_field.setText(str(value)))
+            input_field.editingFinished.connect(lambda: slider.setValue(int(input_field.text()) if input_field.text().isdigit() else min_value))
+        else:
+            slider.setEnabled(False)
+            input_field.setEnabled(False)
         return layout, input_field
 
     def load_image(self):
