@@ -5,6 +5,7 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QVBoxLayout, QWidget, QHBoxLayout, QLabel, QSlider, QLineEdit
 from PySide6.QtCore import Qt, QPointF, QEvent
 
+from logger import LOGGER
 from undo_redo_tracker import UndoRedoTracker, ActionType
 
 # Constants
@@ -191,20 +192,31 @@ class BlobDetector(QWidget):
         return super().eventFilter(source, event)
 
     def handle_undo_redo(self, event):
+        undo = False
         if event.modifiers() & QtCore.Qt.ShiftModifier:
             action = self.undo_redo_tracker.redo()
+            undo = False
         else:
             action = self.undo_redo_tracker.undo()
+            undo = True
         if action is not None:
             keypoint, action_type = action
-            if action_type == ActionType.ADD:
-                self.keypoints.remove(keypoint)
-            elif action_type == ActionType.REMOVE:
-                self.keypoints.append(keypoint)
+            if undo:
+                if action_type == ActionType.ADD:
+                    self.keypoints.remove(keypoint)
+                else:
+                    self.keypoints.append(keypoint)
             else:
-                raise ValueError(f"Invalid action type: {action_type}")
+                if action_type == ActionType.ADD:
+                    self.keypoints.append(keypoint)
+                else:
+                    self.keypoints.remove(keypoint)
             self.update_display_image()
             return True
+        else:
+            LOGGER.info("No more actions to undo/redo.")
+            return False
+
 
     def add_or_remove_keypoint(self, position):
         scene_pos = self.graphics_view.mapToScene(position.toPoint())
