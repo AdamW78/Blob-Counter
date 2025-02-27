@@ -139,7 +139,7 @@ class ImageSetBlobDetector(QWidget):
             detector = BlobDetector(image_path)
             self.blob_detector_stack.addWidget(detector)
             list_name = self.get_custom_name(image_path, DEFAULT_DILUTION)
-            self.image_list_widget.addItem(f"{os.path.basename(image_path)} - Keypoints: {len(detector.keypoints)}")
+            self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(detector.keypoints)}")
         # Automatically select the top image
         if self.image_list_widget.count() > 0:
             self.image_list_widget.setCurrentRow(0)
