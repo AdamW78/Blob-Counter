@@ -1,10 +1,9 @@
 import cv2
-import numpy as np
 from PySide6 import QtCore
+from PySide6.QtCore import Qt, QPointF, QEvent
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QVBoxLayout, QWidget, \
     QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton
-from PySide6.QtCore import Qt, QPointF, QEvent
 
 from logger import LOGGER
 from undo_redo_tracker import UndoRedoTracker, ActionType
