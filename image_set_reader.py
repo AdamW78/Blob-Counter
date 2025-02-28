@@ -5,13 +5,10 @@ import cv2
 from PySide6.QtWidgets import QListWidget, QFileDialog, QScrollArea, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QApplication, QLabel, QSlider, QLineEdit, QGroupBox, QStackedWidget
 from PySide6.QtCore import Qt
 
-from image_reader import BlobDetector
+from image_reader import BlobDetector, DEFAULT_DILUTION
 from logger import LOGGER
 
 IMAGE_LIST_WIDGET_WIDTH = 300
-DEFAULT_DILUTION = "3rd"
-USE_DILUTION = True
-USE_DAY = True
 
 class ImageSetBlobDetector(QWidget):
     def __init__(self):
@@ -93,40 +90,6 @@ class ImageSetBlobDetector(QWidget):
         if folder_path:
             self.load_images_from_folder(folder_path)
 
-    def get_dilution_string(self, dilution_str: str, default_dilution: str):
-        if dilution_str.find("1st") != -1:
-            return "x10 dilution"
-        elif dilution_str.find("2nd") != -1:
-            return "x100 dilution"
-        elif dilution_str.find("3rd") != -1:
-            return "x1000 dilution"
-        else:
-            return self.get_dilution_string(default_dilution, default_dilution)
-
-    def get_custom_name(self, image_path, default_dilution="3rd"):
-        parts = os.path.basename(image_path).split('_')
-        str_val = ""
-        if len(parts) == 2 or (len(parts) == 3 and parts[2].find("dilution") != -1):
-            folder_name = '\\'.join(image_path.split('\\')[0:-1])
-            if USE_DAY and folder_name.find(r"Day [0-9]{1,3}") != -1:
-                str_val += f"Day {folder_name.split(' ')[-1]} - Sample #{parts[0]}"
-            else:
-                str_val = f"Sample #{parts[0]}"
-            if USE_DILUTION:
-                str_val += f" - {self.get_dilution_string(parts[1], default_dilution)}"
-            return str_val
-        elif len(parts) == 3 or (len(parts) == 4 and parts[3].find("dilution") != -1):
-            if USE_DAY:
-                str_val += f"Day {parts[0]} - Sample #{parts[1]}"
-            else:
-                str_val = f"Sample #{parts[1]}"
-            if USE_DILUTION:
-                str_val += f" - {self.get_dilution_string(parts[2], default_dilution)}"
-            return str_val
-        else:
-            LOGGER.warning("Unable to parse image name - using file name...")
-            return os.path.basename(image_path)
-
 
 
     def load_images_from_folder(self, folder_path):
@@ -138,7 +101,7 @@ class ImageSetBlobDetector(QWidget):
         for image_path in self.image_paths:
             detector = BlobDetector(image_path)
             self.blob_detector_stack.addWidget(detector)
-            list_name = self.get_custom_name(image_path, DEFAULT_DILUTION)
+            list_name = detector.get_custom_name(image_path, DEFAULT_DILUTION)
             self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(detector.keypoints)}")
         # Automatically select the top image
         if self.image_list_widget.count() > 0:
@@ -157,12 +120,8 @@ class ImageSetBlobDetector(QWidget):
             return base_name
 
     def display_selected_image(self, item):
-        selected_image_path = os.path.join(os.path.dirname(self.image_paths[0]), item.text().split(' - ')[0])
-        for i in range(self.blob_detector_stack.count()):
-            detector = self.blob_detector_stack.widget(i)
-            if detector.image_path == selected_image_path:
-                self.blob_detector_stack.setCurrentIndex(i)
-                break
+        selected_index = self.image_list_widget.selectedIndexes()[0]
+        self.blob_detector_stack.setCurrentIndex(selected_index.row())
 
     def update_blob_count_for_all_images(self):
         for i in range(self.blob_detector_stack.count()):

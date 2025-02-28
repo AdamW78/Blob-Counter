@@ -1,3 +1,6 @@
+import os
+from random import sample
+
 import cv2
 from PySide6 import QtCore
 from PySide6.QtCore import Qt, QPointF, QEvent
@@ -11,7 +14,7 @@ from undo_redo_tracker import UndoRedoTracker, ActionType
 # Constants
 DEFAULT_DISPLAY_SCALE_FACTOR = 0.5
 DEFAULT_MIN_AREA = 144
-DEFAULT_MAX_AREA = 5000
+DEFAULT_MAX_AREA = 8000
 DEFAULT_MIN_CIRCULARITY = 0.6
 DEFAULT_MIN_CONVEXITY = 0.1
 DEFAULT_MIN_INERTIA_RATIO = 0.01
@@ -24,6 +27,9 @@ MAX_SCALE_FACTOR = 5.0
 NEW_KEYPOINT_SIZE = 40
 GRAPHICS_VIEW_HEIGHT = 600
 GRAPHICS_VIEW_WIDTH = 800
+DEFAULT_DILUTION = "3rd"
+USE_DILUTION = True
+USE_DAY = True
 
 class BlobDetector(QWidget):
     def __init__(self, image_path=None, display_scale_factor=DEFAULT_DISPLAY_SCALE_FACTOR):
@@ -47,6 +53,7 @@ class BlobDetector(QWidget):
         self.current_scale_factor = 1.0
         self.undo_redo_tracker = UndoRedoTracker()
         self.initUI()
+        self.sample_number = -1
 
         # Mouse state variables
         self.is_dragging = False
@@ -96,6 +103,44 @@ class BlobDetector(QWidget):
         self.graphics_view.setDragMode(QGraphicsView.NoDrag)
         self.graphics_view.viewport().installEventFilter(self)
         self.installEventFilter(self)
+
+    def get_dilution_string(self, dilution_str: str, default_dilution: str):
+        if dilution_str.find("1st") != -1:
+            return "x10 dilution"
+        elif dilution_str.find("2nd") != -1:
+            return "x100 dilution"
+        elif dilution_str.find("3rd") != -1:
+            return "x1000 dilution"
+        else:
+            return self.get_dilution_string(default_dilution, default_dilution)
+
+    def get_custom_name(self, image_path, default_dilution="3rd"):
+        parts = os.path.basename(image_path).split('_')
+        str_val = ""
+        if len(parts) == 2 or (len(parts) == 3 and parts[2].find("dilution") != -1):
+            folder_name = '\\'.join(image_path.split('\\')[0:-1])
+            if USE_DAY and folder_name.find(r"Day [0-9]{1,3}") != -1:
+                str_val += f"Day {folder_name.split(' ')[-1]} - Sample #{parts[0]}"
+            else:
+                if parts[0].isdigit():
+                    str_val = f"Sample #{parts[0]}"
+                    self.sample_number = int(parts[0])
+            if USE_DILUTION:
+                str_val += f" - {self.get_dilution_string(parts[1], default_dilution)}"
+            return str_val
+        elif len(parts) == 3 or (len(parts) == 4 and parts[3].find("dilution") != -1):
+            if USE_DAY:
+                str_val += f"Day {parts[0]} - Sample #{parts[1]}"
+            else:
+                if parts[1].isdigit():
+                    str_val = f"Sample #{parts[1]}"
+                    self.sample_number = int(parts[1])
+            if USE_DILUTION:
+                str_val += f" - {self.get_dilution_string(parts[2], default_dilution)}"
+            return str_val
+        else:
+            LOGGER.warning("Unable to parse image name - using file name...")
+            return os.path.basename(image_path)
 
     def update_slider_input(self, slider, input_field, value):
         input_field.setText(str(value))
