@@ -1,9 +1,9 @@
 import os
-from random import sample
+from collections import namedtuple
 
 import cv2
 from PySide6 import QtCore
-from PySide6.QtCore import Qt, QPointF, QEvent
+from PySide6.QtCore import Qt, QPointF, QEvent, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QVBoxLayout, QWidget, \
     QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton
@@ -31,7 +31,12 @@ DEFAULT_DILUTION = "3rd"
 USE_DILUTION = True
 USE_DAY = True
 
+Timepoint = namedtuple("Timepoint", ["day", "sample_number",  "dilution", "num_keypoints"], )
+
 class BlobDetector(QWidget):
+
+    keypoints_changed = Signal(int)
+
     def __init__(self, image_path=None, display_scale_factor=DEFAULT_DISPLAY_SCALE_FACTOR):
         super().__init__()
         self.image_path = image_path
@@ -43,6 +48,12 @@ class BlobDetector(QWidget):
             self.detector = cv2.SimpleBlobDetector_create(self.params)
             self.keypoints = list(self.detect_blobs())
             self.blobs = self.draw_blobs()
+            self.timepoint = None
+            self.sample_number = -1
+            self.day_num = -1
+            self.dilution = None
+            self.get_custom_name()
+            self.update_timepoint()
         else:
             self.image = None
             self.gray_image = None
@@ -53,7 +64,6 @@ class BlobDetector(QWidget):
         self.current_scale_factor = 1.0
         self.undo_redo_tracker = UndoRedoTracker()
         self.initUI()
-        self.sample_number = -1
 
         # Mouse state variables
         self.is_dragging = False
@@ -106,41 +116,106 @@ class BlobDetector(QWidget):
 
     def get_dilution_string(self, dilution_str: str, default_dilution: str):
         if dilution_str.find("1st") != -1:
+            self.dilution = "x10"
             return "x10 dilution"
         elif dilution_str.find("2nd") != -1:
+            self.dilution = "x100"
             return "x100 dilution"
         elif dilution_str.find("3rd") != -1:
+            self.dilution = "x1000"
             return "x1000 dilution"
         else:
-            return self.get_dilution_string(default_dilution, default_dilution)
+            return 0, self.get_dilution_string(default_dilution, default_dilution)
 
-    def get_custom_name(self, image_path, default_dilution="3rd"):
-        parts = os.path.basename(image_path).split('_')
+    def handle_dilution_string(self, dilution_str: str, default_dilution: str) -> str:
+        if USE_DILUTION:
+            dilution_string = self.get_dilution_string(dilution_str, default_dilution)
+            if dilution_string is tuple:
+                return f" - {dilution_string[1]}"
+            else:
+                return f" - {dilution_string}"
+        else:
+            return ""
+
+    def update_timepoint(self):
+        if self.day_num != -1 and self.sample_number != -1 and self.dilution is not None:
+            self.timepoint = Timepoint(day=self.day_num, sample_number=self.sample_number, dilution=self.dilution, num_keypoints=len(self.keypoints))
+
+    def get_timepoint(self):
+        return self.timepoint
+
+    def parse_day_number(self, day_num_str: str):
+        index = 0
+        while day_num_str[:index + 1].isdigit():
+            index += 1
+        self.day_num = int(day_num_str[:index])
+        return self.day_num
+
+
+    def check_if_int(self, string):
+        try:
+            int(string)
+            return True
+        except ValueError:
+            return False
+
+    def handle_sample_number(self, sample_number_str: str):
+        if sample_number_str.isdigit():
+            self.sample_number = int(sample_number_str)
+            return f"Sample {self.sample_number}"
+
+
+    def handle_day_src(self, day_source) -> str:
+        day_string = ""
+        if USE_DAY:
+            if isinstance(day_source, list):
+                day_string = day_source[0]
+            elif isinstance(day_source, str):
+                find_day = day_source.find(r"Day [0-9]{1,3}")
+                if find_day != -1:
+                    day_string_parts = day_source[find_day:].split(' ')
+                    next_string = False
+                    for index, part in enumerate(day_string_parts):
+                        if next_string:
+                            day_string = self.parse_day_number(part)
+                        elif part.find("Day") != -1 and day_string_parts[index + 1][0].isdigit():
+                            next_string = True
+            else:
+                LOGGER.warning("Day source is incorrect type - expected list or string - not including day in timepoint display name...")
+                LOGGER.warning("Day source type: %s", type(day_source))
+                return day_string
+            if self.check_if_int(day_string):
+                self.day_num = int(day_string)
+                return f"Day {day_string} - "
+            else:
+                LOGGER.warning("Unable to parse day string - NOT AN INTEGER - not including day in timepoint display name...")
+                return ""
+        return day_string
+
+    def get_custom_name(self, default_dilution=DEFAULT_DILUTION):
+        basename = os.path.basename(self.image_path)
+        if basename.upper().endswith("LABEL.JPG"):
+            LOGGER.info("Skipping label image...")
+            return basename
+        parts = basename.split('_')
+        folder_name = os.path.basename(os.path.dirname(self.image_path))
         str_val = ""
         if len(parts) == 2 or (len(parts) == 3 and parts[2].find("dilution") != -1):
-            folder_name = '\\'.join(image_path.split('\\')[0:-1])
-            if USE_DAY and folder_name.find(r"Day [0-9]{1,3}") != -1:
-                str_val += f"Day {folder_name.split(' ')[-1]} - Sample #{parts[0]}"
-            else:
-                if parts[0].isdigit():
-                    str_val = f"Sample #{parts[0]}"
-                    self.sample_number = int(parts[0])
-            if USE_DILUTION:
-                str_val += f" - {self.get_dilution_string(parts[1], default_dilution)}"
-            return str_val
+            str_val += self.handle_day_src(folder_name)
+            str_val += self.handle_sample_number(parts[0])
+            str_val += self.handle_dilution_string(parts[1], default_dilution)
+
         elif len(parts) == 3 or (len(parts) == 4 and parts[3].find("dilution") != -1):
-            if USE_DAY:
-                str_val += f"Day {parts[0]} - Sample #{parts[1]}"
-            else:
-                if parts[1].isdigit():
-                    str_val = f"Sample #{parts[1]}"
-                    self.sample_number = int(parts[1])
-            if USE_DILUTION:
-                str_val += f" - {self.get_dilution_string(parts[2], default_dilution)}"
-            return str_val
+            day_string = self.handle_day_src(parts)
+            if day_string == "":
+                day_string = self.handle_day_src(folder_name)
+            str_val += day_string
+            str_val += self.handle_sample_number(parts[1])
+            str_val += self.handle_dilution_string(parts[2], default_dilution)
         else:
             LOGGER.warning("Unable to parse image name - using file name...")
-            return os.path.basename(image_path)
+            str_val = os.path.basename(self.image_path)
+        return str_val
 
     def update_slider_input(self, slider, input_field, value):
         input_field.setText(str(value))
@@ -155,6 +230,7 @@ class BlobDetector(QWidget):
         self.detector = cv2.SimpleBlobDetector_create(self.params)
         self.keypoints = list(self.detect_blobs())
         self.update_display_image()
+        self.update_timepoint()
 
     def update_display_image(self):
         self.blobs = self.draw_blobs()
@@ -292,11 +368,11 @@ class BlobDetector(QWidget):
                 else:
                     self.keypoints.remove(keypoint)
             self.update_display_image()
+            self.update_timepoint()
             return True
         else:
             LOGGER.info("No more actions to undo/redo.")
             return False
-
 
     def add_or_remove_keypoint(self, position):
         scene_pos = self.graphics_view.mapToScene(position.toPoint())
@@ -308,11 +384,14 @@ class BlobDetector(QWidget):
                 self.undo_redo_tracker.push((keypoint, ActionType.REMOVE))
                 self.keypoints.remove(keypoint)
                 self.update_display_image()
+                self.keypoints_changed.emit(len(self.keypoints))
                 return
         keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
         self.undo_redo_tracker.push((keypoint, ActionType.ADD))
         self.keypoints.append(keypoint)
         self.update_display_image()
+        self.keypoints_changed.emit(len(self.keypoints))
+        self.update_timepoint()
 
     def fit_image_to_view(self):
         self.graphics_view.fitInView(self.graphics_scene.sceneRect(), Qt.KeepAspectRatio)
