@@ -8,7 +8,7 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QVBoxLayout, QWidget, \
     QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton
 
-from logger import LOGGER
+import logger
 from undo_redo_tracker import UndoRedoTracker, ActionType
 
 # Constants
@@ -39,6 +39,7 @@ class BlobDetector(QWidget):
 
     def __init__(self, image_path=None, display_scale_factor=DEFAULT_DISPLAY_SCALE_FACTOR):
         super().__init__()
+        self.custom_name = None
         self.image_path = image_path
         self.display_scale_factor = display_scale_factor
         if image_path is not None:
@@ -181,41 +182,45 @@ class BlobDetector(QWidget):
                         elif part.find("Day") != -1 and day_string_parts[index + 1][0].isdigit():
                             next_string = True
             else:
-                LOGGER.warning("Day source is incorrect type - expected list or string - not including day in timepoint display name...")
-                LOGGER.warning("Day source type: %s", type(day_source))
+                logger.LOGGER().warning("Day source is incorrect type - expected list or string - not including day in timepoint display name...")
+                logger.LOGGER().warning("Day source type: %s", type(day_source))
                 return day_string
             if self.check_if_int(day_string):
                 self.day_num = int(day_string)
                 return f"Day {day_string} - "
             else:
-                LOGGER.warning("Unable to parse day string - NOT AN INTEGER - not including day in timepoint display name...")
+                logger.LOGGER().warning("Unable to parse day string - NOT AN INTEGER - not including day in timepoint display name...")
                 return ""
         return day_string
 
     def get_custom_name(self, default_dilution=DEFAULT_DILUTION):
-        basename = os.path.basename(self.image_path)
-        if basename.upper().endswith("LABEL.JPG"):
-            LOGGER.info("Skipping label image...")
-            return basename
-        parts = basename.split('_')
-        folder_name = os.path.basename(os.path.dirname(self.image_path))
-        str_val = ""
-        if len(parts) == 2 or (len(parts) == 3 and parts[2].find("dilution") != -1):
-            str_val += self.handle_day_src(folder_name)
-            str_val += self.handle_sample_number(parts[0])
-            str_val += self.handle_dilution_string(parts[1], default_dilution)
-
-        elif len(parts) == 3 or (len(parts) == 4 and parts[3].find("dilution") != -1):
-            day_string = self.handle_day_src(parts)
-            if day_string == "":
-                day_string = self.handle_day_src(folder_name)
-            str_val += day_string
-            str_val += self.handle_sample_number(parts[1])
-            str_val += self.handle_dilution_string(parts[2], default_dilution)
+        if self.custom_name is None:
+            basename = os.path.basename(self.image_path)
+            if basename.upper().endswith("LABEL.JPG"):
+                logger.LOGGER().info("Skipping label image...")
+                return basename
+            parts = basename.split('_')
+            folder_name = os.path.basename(os.path.dirname(self.image_path))
+            str_val = ""
+            if len(parts) == 2 or (len(parts) == 3 and parts[2].find("dilution") != -1):
+                str_val += self.handle_day_src(folder_name)
+                str_val += self.handle_sample_number(parts[0])
+                str_val += self.handle_dilution_string(parts[1], default_dilution)
+    
+            elif len(parts) == 3 or (len(parts) == 4 and parts[3].find("dilution") != -1):
+                day_string = self.handle_day_src(parts)
+                if day_string == "":
+                    day_string = self.handle_day_src(folder_name)
+                str_val += day_string
+                str_val += self.handle_sample_number(parts[1])
+                str_val += self.handle_dilution_string(parts[2], default_dilution)
+            else:
+                logger.LOGGER().warning("Unable to parse image name - using file name...")
+                str_val = os.path.basename(self.image_path)
+            self.custom_name = str_val
+            return str_val
         else:
-            LOGGER.warning("Unable to parse image name - using file name...")
-            str_val = os.path.basename(self.image_path)
-        return str_val
+            return self.custom_name
 
     def update_slider_input(self, slider, input_field, value):
         input_field.setText(str(value))
@@ -371,7 +376,7 @@ class BlobDetector(QWidget):
             self.update_timepoint()
             return True
         else:
-            LOGGER.info("No more actions to undo/redo.")
+            logger.LOGGER().info("No more actions to undo/redo.")
             return False
 
     def add_or_remove_keypoint(self, position):

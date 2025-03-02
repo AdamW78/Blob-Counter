@@ -6,8 +6,9 @@ import cv2
 from PySide6.QtWidgets import QListWidget, QFileDialog, QScrollArea, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QApplication, QLabel, QSlider, QLineEdit, QGroupBox, QStackedWidget
 from PySide6.QtCore import Qt
 
+from excel_output import ExcelOutput
 from image_reader import BlobDetector, DEFAULT_DILUTION
-from logger import LOGGER
+import logger
 Timepoint = namedtuple("Timepoint", ["image_path", "keypoints", "day", "dilution"], )
 
 IMAGE_LIST_WIDGET_WIDTH = 300
@@ -168,13 +169,21 @@ class ImageSetBlobDetector(QWidget):
 
     def export_blob_counts(self):
         if not self.timepoints:
-            LOGGER.error("No timepoints have been loaded.")
+            logger.LOGGER().error("No timepoints have been loaded.")
             return
-        else:
-            print("Exporting blob counts.")
-            for timepoint in self.timepoints:
-                print(f"Day {timepoint.day} - Sample #{timepoint.sample_number} - Dilution: {timepoint.dilution} - Keypoints: {timepoint.num_keypoints}")
 
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Blob Counts", "", "Excel Files (*.xlsx)")
+        if not file_path:
+            return
+
+        excel_output = ExcelOutput(file_path)
+        for timepoint in self.timepoints:
+            try:
+                excel_output.write_blob_counts(timepoint.day, timepoint.sample_number, timepoint.num_keypoints)
+            except ValueError as e:
+                logger.LOGGER().error(e)
+        excel_output.save()
+        logger.LOGGER().info("Blob counts exported to Excel.")
 
 if __name__ == "__main__":
     app = QApplication([])
