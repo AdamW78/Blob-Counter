@@ -154,7 +154,6 @@ class ImageSetBlobDetector(QWidget):
             self.display_selected_image(self.image_list_widget.item(0))
 
         self.update_image_list()
-
         if self.timepoints:
             self.export_button.setEnabled(True)
 
@@ -185,6 +184,8 @@ class ImageSetBlobDetector(QWidget):
         return -1  # Default value if no sample number is found
 
     def update_image_list(self):
+        old_selected_index = self.image_list_widget.selectedIndexes()[
+            0].row() if self.image_list_widget.selectedIndexes() else 0
         self.image_list_widget.clear()
         timepoints_with_widgets = []
         for i in range(self.blob_detector_stack.count()):
@@ -195,19 +196,16 @@ class ImageSetBlobDetector(QWidget):
         # Sort timepoints and widgets by sample number
         timepoints_with_widgets.sort(key=lambda x: x[0].sample_number)
 
-        for timepoint, widget in timepoints_with_widgets:
+        # Re-order widgets in the stack
+        for index, (timepoint, widget) in enumerate(timepoints_with_widgets):
+            self.blob_detector_stack.removeWidget(widget)
+            self.blob_detector_stack.insertWidget(index, widget)
             list_name = widget.blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
             self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(widget.blob_detector_logic.keypoints)}")
 
-        # Sort items in the image list widget by sample number
-        items = [self.image_list_widget.item(i).text() for i in range(self.image_list_widget.count())]
-        items.sort(key=self.extract_sample_number)
-        self.image_list_widget.clear()
-        for item_text in items:
-            self.image_list_widget.addItem(item_text)
-
-        if self.image_list_widget.count() > 0:
-            self.image_list_widget.setCurrentRow(0)
+        # Ensure the correct widget is selected
+        self.image_list_widget.setCurrentRow(old_selected_index)
+        self.blob_detector_stack.setCurrentIndex(old_selected_index)
 
     def export_blob_counts(self):
         if not self.timepoints:

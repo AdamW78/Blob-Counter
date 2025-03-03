@@ -218,12 +218,14 @@ class BlobDetectorLogic(QObject):
             if (x - kp_x) ** 2 + (y - kp_y) ** 2 <= radius ** 2:
                 self.keypoints.remove(keypoint)
                 self.undo_redo_tracker.push((keypoint, ActionType.REMOVE))
+                self.update_timepoint()
                 self.keypoints_changed.emit(len(self.keypoints))
                 return
         # If not within any keypoint, add a new keypoint
         keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
         self.keypoints.append(keypoint)
         self.undo_redo_tracker.push((keypoint, ActionType.ADD))
+        self.update_timepoint()
         self.keypoints_changed.emit(len(self.keypoints))
 
 
