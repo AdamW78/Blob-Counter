@@ -191,6 +191,7 @@ class ImageSetBlobDetector(QWidget):
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
+                widget.blob_detector_logic.update_timepoint()
                 timepoints_with_widgets.append((widget.blob_detector_logic.get_timepoint(), widget))
 
         # Sort timepoints and widgets by sample number
@@ -214,6 +215,14 @@ class ImageSetBlobDetector(QWidget):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Blob Counts", "", "Excel Files (*.xlsx)")
         if not file_path:
             return
+
+        # Update timepoints with the latest keypoint counts
+        self.timepoints.clear()
+        for i in range(self.blob_detector_stack.count()):
+            widget = self.blob_detector_stack.widget(i)
+            if isinstance(widget, BlobDetectorUI):
+                widget.blob_detector_logic.update_timepoint()
+                self.timepoints.append(widget.blob_detector_logic.get_timepoint())
 
         self.timepoints.sort(key=lambda x: x.sample_number)  # Ensure timepoints are sorted by sample number
         excel_output = ExcelOutput(file_path)

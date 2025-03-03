@@ -45,8 +45,8 @@ class BlobDetectorLogic(QObject):
 
     def update_timepoint(self):
         if self.day_num != -1 and self.sample_number != -1 and self.dilution is not None:
-            self.timepoint = Timepoint(day=self.day_num, sample_number=self.sample_number, dilution=self.dilution, num_keypoints=len(self.keypoints))
-
+            self.timepoint = Timepoint(day=self.day_num, sample_number=self.sample_number, dilution=self.dilution,
+                                       num_keypoints=len(self.keypoints))
     def get_timepoint(self):
         return self.timepoint
 
@@ -83,20 +83,17 @@ class BlobDetectorLogic(QObject):
         self.params.minInertiaRatio = min_inertia_ratio
         self.params.minDistBetweenBlobs = min_dist_between_blobs
         self.detector = cv2.SimpleBlobDetector_create(self.params)
-
-        # Reload the image to reset any previous preprocessing
         self.convert_to_grayscale()
-
-        # Apply preprocessing if checkboxes are checked
         if apply_gaussian_blur:
             self.gray_image = cv2.GaussianBlur(self.gray_image, (5, 5), 0)
         if apply_morphological_operations:
             kernel = np.ones((5, 5), np.uint8)
             self.gray_image = cv2.erode(self.gray_image, kernel, iterations=1)
             self.gray_image = cv2.dilate(self.gray_image, kernel, iterations=1)
+        self.update_timepoint()
+        self.keypoints_changed.emit(len(self.keypoints))
 
         # Detect blobs and update the display
-        self.detect_blobs()
         self.keypoints_changed.emit(len(self.keypoints))
 
     def get_dilution_string(self, dilution_str: str, default_dilution: str):
@@ -211,7 +208,6 @@ class BlobDetectorLogic(QObject):
         return len(self.keypoints)
 
     def add_or_remove_keypoint(self, x, y):
-        # Check if the position is within any keypoint
         for keypoint in self.keypoints:
             kp_x, kp_y = keypoint.pt
             radius = keypoint.size / 2
@@ -221,13 +217,11 @@ class BlobDetectorLogic(QObject):
                 self.update_timepoint()
                 self.keypoints_changed.emit(len(self.keypoints))
                 return
-        # If not within any keypoint, add a new keypoint
         keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
         self.keypoints.append(keypoint)
         self.undo_redo_tracker.push((keypoint, ActionType.ADD))
         self.update_timepoint()
         self.keypoints_changed.emit(len(self.keypoints))
-
 
     def handle_undo_redo(self, event):
         undo = False
