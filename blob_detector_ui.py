@@ -1,14 +1,16 @@
+import PySide6.QtGui
 import cv2
 from PySide6 import QtCore
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 from PySide6.QtGui import QImage, QPixmap, QWheelEvent, QKeyEvent
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton, QCheckBox, \
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
+    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture
 
 from utils import GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT, MIN_AREA, MAX_AREA, DEFAULT_MIN_AREA, DEFAULT_MAX_AREA, \
     DEFAULT_MIN_CONVEXITY, DEFAULT_MIN_CIRCULARITY, DEFAULT_MIN_INERTIA_RATIO, MAX_DISTANCE_BETWEEN_BLOBS, \
     MIN_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS, MIN_SCALE_FACTOR, MAX_SCALE_FACTOR, \
     NEW_KEYPOINT_SIZE
+
 
 class BlobDetectorUI(QWidget):
     keypoints_changed = Signal(int)
@@ -66,7 +68,11 @@ class BlobDetectorUI(QWidget):
 
         self.graphics_view.setDragMode(QGraphicsView.NoDrag)
         self.graphics_view.viewport().installEventFilter(self)
+        # Install event filters for zooming and gestures
         self.installEventFilter(self)
+        self.graphics_view.viewport().grabGesture(Qt.GestureType.SwipeGesture)
+        self.graphics_view.viewport().grabGesture(Qt.GestureType.PanGesture)
+        self.graphics_view.viewport().grabGesture(Qt.GestureType.PinchGesture)
 
     def fit_in_view(self):
         rect = self.graphics_scene.itemsBoundingRect()
@@ -148,14 +154,16 @@ class BlobDetectorUI(QWidget):
     def eventFilter(self, source, event):
         if self.blob_detector_logic.image_path is None:
             return super().eventFilter(source, event)
-        if event.type() == QEvent.MouseButtonPress:
-            if event.button() == Qt.LeftButton:
+        if event.type() == QEvent.Gesture:
+            return self.handle_gesture_event(event)
+        elif event.type() == QEvent.Type.MouseButtonPress:
+            if event.button() == Qt.MouseButton.LeftButton:
                 self.mouse_press_position = event.position()
                 if self.graphics_view.viewport().rect().contains(self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
                     self.mouse_is_pressed = True
                     self.is_dragging = False
                     return True
-        elif event.type() == QEvent.MouseMove:
+        elif event.type() == QEvent.Type.MouseMove:
             if self.mouse_is_pressed and self.graphics_view.viewport().rect().contains(self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
                 self.is_dragging = True
                 delta = event.position() - self.mouse_press_position
@@ -163,17 +171,17 @@ class BlobDetectorUI(QWidget):
                 self.graphics_view.verticalScrollBar().setValue(self.graphics_view.verticalScrollBar().value() - delta.y())
                 self.mouse_press_position = event.position()
                 return True
-        elif event.type() == QEvent.MouseButtonRelease:
-            if event.button() == Qt.LeftButton:
+        elif event.type() == QEvent.Type.MouseButtonRelease:
+            if event.button() == Qt.MouseButton.LeftButton:
                 if not self.is_dragging and self.graphics_view.viewport().rect().contains(self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
                     self.add_or_remove_keypoint(event.position())
                     self.is_dragging = False
                     self.mouse_is_pressed = False
                     return True
-        elif event.type() == QEvent.Wheel:
+        elif event.type() == QEvent.Type.Wheel:
             self.handle_wheel_zoom(event)
             return True
-        elif event.type() == QEvent.KeyPress:
+        elif event.type() == QEvent.Type.KeyPress:
             self.handle_key_zoom(event)
             return True
         return super().eventFilter(source, event)
@@ -196,10 +204,10 @@ class BlobDetectorUI(QWidget):
         zoom_in_factor = 1.1
         zoom_out_factor = 1 / zoom_in_factor
 
-        if event.modifiers() & Qt.ControlModifier:
-            if event.key() == Qt.Key_Plus:
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier or event.modifiers() & Qt.KeyboardModifier.MetaModifier:
+            if event.key() == Qt.Key.Key_Equal:
                 zoom_factor = zoom_in_factor
-            elif event.key() == Qt.Key_Minus:
+            elif event.key() == Qt.Key.Key_Minus:
                 zoom_factor = zoom_out_factor
             else:
                 return
@@ -208,6 +216,17 @@ class BlobDetectorUI(QWidget):
             if MIN_SCALE_FACTOR <= new_scale_factor <= MAX_SCALE_FACTOR:
                 self.graphics_view.scale(zoom_factor, zoom_factor)
                 self.current_scale_factor = new_scale_factor
+
+    def handle_pan_gesture(self, gesture: QGesture):
+        assert gesture is not None
+        assert gesture.gestureType() is Qt.GestureType.PanGesture
+
+
+    def handle_gesture_event(self, event: QGestureEvent):
+        for gesture in event.gestures():
+            if gesture.gestureType() is Qt.GestureType.PanGesture:
+                return self.handle_pan_gesture(gesture)
+        return True
 
     def add_or_remove_keypoint(self, position):
         scene_pos = self.graphics_view.mapToScene(position.toPoint())

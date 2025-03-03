@@ -43,7 +43,9 @@ class ImageSetBlobDetector(QWidget):
         self.installEventFilter(self)
 
     def eventFilter(self, source, event):
-        if event.type() == QEvent.Wheel:
+        if event.type() == QEvent.Gesture:
+            return self.handle_gesture_event(event)
+        elif event.type() == QEvent.Wheel:
             current_widget = self.blob_detector_stack.currentWidget()
             if isinstance(current_widget, BlobDetectorUI):
                 current_widget.handle_wheel_zoom(event)
@@ -54,6 +56,19 @@ class ImageSetBlobDetector(QWidget):
                 current_widget.handle_key_zoom(event)
                 return True
         return super().eventFilter(source, event)
+
+    def handle_gesture_event(self, event):
+        gesture = event.gesture(Qt.PanGesture)
+        if gesture:
+            delta = gesture.delta()
+            self.blob_detector_stack.horizontalScrollBar().setValue(
+                self.blob_detector_stack.horizontalScrollBar().value() - delta.x()
+            )
+            self.blob_detector_stack.verticalScrollBar().setValue(
+                self.blob_detector_stack.verticalScrollBar().value() - delta.y()
+            )
+            return True
+        return False
 
     def create_slider_with_input(self, name, min_value, max_value, initial_value):
         layout = QHBoxLayout()
