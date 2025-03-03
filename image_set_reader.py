@@ -11,7 +11,7 @@ from blob_detector_ui import BlobDetectorUI
 from excel_output import ExcelOutput
 from utils import DEFAULT_DILUTION, IMAGE_LIST_WIDGET_WIDTH
 
-Timepoint = namedtuple("Timepoint", ["image_path", "keypoints", "day", "dilution"])
+Timepoint = namedtuple("Timepoint", ["image_path", "keypoints", "day", "dilution", "sample_number"])
 
 class ImageSetBlobDetector(QWidget):
     def __init__(self):
@@ -41,7 +41,6 @@ class ImageSetBlobDetector(QWidget):
 
         # Install event filters for zooming
         self.installEventFilter(self)
-
 
     def eventFilter(self, source, event):
         if event.type() == QEvent.Wheel:
@@ -135,7 +134,6 @@ class ImageSetBlobDetector(QWidget):
     def load_images_from_folder(self, folder_path):
         self.image_paths = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if
                             f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-        self.image_paths.sort(key=self.sort_key)
         self.image_list_widget.clear()
         self.timepoints.clear()
 
@@ -155,19 +153,10 @@ class ImageSetBlobDetector(QWidget):
             self.image_list_widget.setCurrentRow(0)
             self.display_selected_image(self.image_list_widget.item(0))
 
-        i = 0
-        while i < len(self.timepoints):
-            if self.timepoints[i] is None:
-                self.timepoints.pop(i)
-            else:
-                i += 1
-        self.timepoints.sort(key=lambda x: x.sample_number, reverse=False)
+        self.update_image_list()
+
         if self.timepoints:
             self.export_button.setEnabled(True)
-
-    def sort_key(self, filename):
-        # Implement your sorting logic here
-        return filename
 
     def display_selected_image(self, item):
         selected_index = self.image_list_widget.row(item)
@@ -188,13 +177,35 @@ class ImageSetBlobDetector(QWidget):
         self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(blob_detector_logic.keypoints)}")
         self.timepoints.append(blob_detector_logic.get_timepoint())
 
+    def extract_sample_number(self, item_text):
+        parts = item_text.split(' ')
+        for part in parts:
+            if part.startswith("Sample") and part[6:].isdigit():
+                return int(part[6:])
+        return -1  # Default value if no sample number is found
+
     def update_image_list(self):
         self.image_list_widget.clear()
+        timepoints_with_widgets = []
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
-                list_name = widget.blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
-                self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(widget.blob_detector_logic.keypoints)}")
+                timepoints_with_widgets.append((widget.blob_detector_logic.get_timepoint(), widget))
+
+        # Sort timepoints and widgets by sample number
+        timepoints_with_widgets.sort(key=lambda x: x[0].sample_number)
+
+        for timepoint, widget in timepoints_with_widgets:
+            list_name = widget.blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
+            self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(widget.blob_detector_logic.keypoints)}")
+
+        # Sort items in the image list widget by sample number
+        items = [self.image_list_widget.item(i).text() for i in range(self.image_list_widget.count())]
+        items.sort(key=self.extract_sample_number)
+        self.image_list_widget.clear()
+        for item_text in items:
+            self.image_list_widget.addItem(item_text)
+
         if self.image_list_widget.count() > 0:
             self.image_list_widget.setCurrentRow(0)
 
@@ -206,6 +217,7 @@ class ImageSetBlobDetector(QWidget):
         if not file_path:
             return
 
+        self.timepoints.sort(key=lambda x: x.sample_number)  # Ensure timepoints are sorted by sample number
         excel_output = ExcelOutput(file_path)
         for timepoint in self.timepoints:
             excel_output.write_blob_counts(timepoint.day, timepoint.sample_number, timepoint.num_keypoints)
