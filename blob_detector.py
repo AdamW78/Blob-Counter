@@ -1,51 +1,19 @@
 import os
-from collections import namedtuple
-
 import cv2
 import numpy as np
 from PySide6 import QtCore
 from PySide6.QtCore import Qt, QPointF, QEvent, Signal
 from PySide6.QtGui import QImage, QPixmap
-from PySide6.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QVBoxLayout, QWidget, \
-    QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton, QCheckBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton, QCheckBox, \
+    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QApplication
 
 import logger
 from undo_redo_tracker import UndoRedoTracker, ActionType
-
-# Constants
-DEFAULT_DISPLAY_SCALE_FACTOR = 0.5
-MIN_DISTANCE_BETWEEN_BLOBS = 1
-MAX_DISTANCE_BETWEEN_BLOBS = 100
-MIN_THRESHOLD = 1
-MAX_THRESHOLD = 255
-MIN_AREA = 1
-MAX_AREA = 8000
-DEFAULT_MIN_THRESHOLD = 100
-DEFAULT_MAX_THRESHOLD = 160
-DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS = 1
-DEFAULT_MIN_AREA = 144
-DEFAULT_MAX_AREA = 5000
-DEFAULT_MIN_CIRCULARITY = 0.4
-DEFAULT_MIN_CONVEXITY = 0.80
-DEFAULT_MIN_INERTIA_RATIO = 0.01
-DEFAULT_BLOB_COLOR = 1
-DEFAULT_IMAGE_PATH = r'images/Arginine CLS with pH/Day 19/19_23_2nd_dilution.JPG'
-CIRCLE_COLOR = (0, 0, 255)
-CIRCLE_THICKNESS = 10
-MIN_SCALE_FACTOR = 0.1
-MAX_SCALE_FACTOR = 5.0
-NEW_KEYPOINT_SIZE = 40
-GRAPHICS_VIEW_HEIGHT = 600
-GRAPHICS_VIEW_WIDTH = 800
-DEFAULT_DILUTION = "3rd"
-USE_DILUTION = True
-USE_DAY = True
-
-Timepoint = namedtuple("Timepoint", ["day", "sample_number",  "dilution", "num_keypoints"], )
+from utils import *
 
 class BlobDetector(QWidget):
-
     keypoints_changed = Signal(int)
+
     def __init__(self, image_path=None, display_scale_factor=DEFAULT_DISPLAY_SCALE_FACTOR):
         super().__init__()
         self.contours = []
@@ -56,14 +24,14 @@ class BlobDetector(QWidget):
         self.undo_redo_tracker = UndoRedoTracker()
         self.keypoints = None
         self.image = None
-        self.initUI()  # Initialize UI components first
+        self.initUI()
 
         if image_path is not None:
             self.image = self.load_image()
             self.gray_image = self.convert_to_grayscale()
             self.params = self.create_blob_detector_params()
             self.detector = cv2.SimpleBlobDetector_create(self.params)
-            self.keypoints = list(self.detect_blobs())
+            self.detect_blobs()
             self.blobs = self.draw_blobs()
             self.timepoint = None
             self.sample_number = -1
@@ -71,7 +39,7 @@ class BlobDetector(QWidget):
             self.dilution = None
             self.get_custom_name()
             self.update_timepoint()
-            self.keypoint_count_label.setText(f'Keypoints: {len(self.keypoints)}')
+            self.keypoint_count_label.setText(f'Keypoints: {len(self.keypoints) + len(self.contours)}')
             self.update_display_image()
         else:
             self.image = None
@@ -81,7 +49,6 @@ class BlobDetector(QWidget):
             self.keypoints = None
             self.blobs = None
 
-        # Mouse state variables
         self.is_dragging = False
         self.mouse_is_pressed = False
         self.mouse_press_position = QPointF()
@@ -90,29 +57,18 @@ class BlobDetector(QWidget):
         self.setWindowTitle("Blob Detector")
         self.layout = QVBoxLayout(self)
 
-        # Add label to display the number of keypoints
         if self.keypoints is not None:
             self.keypoint_count_label = QLabel(f'Keypoints: {len(self.keypoints)}')
         else:
             self.keypoint_count_label = QLabel('Keypoints: 0')
         self.layout.addWidget(self.keypoint_count_label)
 
-        # Add sliders and text inputs for new parameters
-        self.min_area_slider, self.min_area_input = self.create_slider_with_input('Min Area', MIN_AREA, MAX_AREA,
-                                                                                  DEFAULT_MIN_AREA)
-        self.max_area_slider, self.max_area_input = self.create_slider_with_input('Max Area', MIN_AREA, MAX_AREA,
-                                                                                  DEFAULT_MAX_AREA)
-        self.min_circularity_slider, self.min_circularity_input = self.create_slider_with_input('Min Circularity', 0,
-                                                                                                100,
-                                                                                                int(DEFAULT_MIN_CIRCULARITY * 100))
-        self.min_convexity_slider, self.min_convexity_input = self.create_slider_with_input('Min Convexity', 0, 100,
-                                                                                            int(DEFAULT_MIN_CONVEXITY * 100))
-        self.min_inertia_ratio_slider, self.min_inertia_ratio_input = self.create_slider_with_input('Min Inertia Ratio',
-                                                                                                    0, 100,
-                                                                                                    int(DEFAULT_MIN_INERTIA_RATIO * 100))
-        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = self.create_slider_with_input(
-            'Min Dist Between Blobs', MIN_DISTANCE_BETWEEN_BLOBS, MAX_DISTANCE_BETWEEN_BLOBS,
-            DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS)
+        self.min_area_slider, self.min_area_input = self.create_slider_with_input('Min Area', MIN_AREA, MAX_AREA, DEFAULT_MIN_AREA)
+        self.max_area_slider, self.max_area_input = self.create_slider_with_input('Max Area', MIN_AREA, MAX_AREA, DEFAULT_MAX_AREA)
+        self.min_circularity_slider, self.min_circularity_input = self.create_slider_with_input('Min Circularity', 0, 100, int(DEFAULT_MIN_CIRCULARITY * 100))
+        self.min_convexity_slider, self.min_convexity_input = self.create_slider_with_input('Min Convexity', 0, 100, int(DEFAULT_MIN_CONVEXITY * 100))
+        self.min_inertia_ratio_slider, self.min_inertia_ratio_input = self.create_slider_with_input('Min Inertia Ratio', 0, 100, int(DEFAULT_MIN_INERTIA_RATIO * 100))
+        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = self.create_slider_with_input('Min Dist Between Blobs', MIN_DISTANCE_BETWEEN_BLOBS, MAX_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS)
 
         self.layout.addLayout(self.min_area_slider)
         self.layout.addLayout(self.max_area_slider)
@@ -121,13 +77,11 @@ class BlobDetector(QWidget):
         self.layout.addLayout(self.min_inertia_ratio_slider)
         self.layout.addLayout(self.min_dist_between_blobs_slider)
 
-        # Add checkboxes for preprocessing features
         self.gaussian_blur_checkbox = QCheckBox('Apply Gaussian Blur')
         self.morphological_operations_checkbox = QCheckBox('Apply Morphological Operations')
         self.layout.addWidget(self.gaussian_blur_checkbox)
         self.layout.addWidget(self.morphological_operations_checkbox)
 
-        # Add the "Recount Blobs" button
         self.recount_button = QPushButton('Recount Blobs')
         self.recount_button.clicked.connect(self.update_blob_count)
         self.layout.addWidget(self.recount_button)
@@ -164,7 +118,7 @@ class BlobDetector(QWidget):
     def handle_dilution_string(self, dilution_str: str, default_dilution: str) -> str:
         if USE_DILUTION:
             dilution_string = self.get_dilution_string(dilution_str, default_dilution)
-            if dilution_string is tuple:
+            if isinstance(dilution_string, tuple):
                 return f" - {dilution_string[1]}"
             else:
                 return f" - {dilution_string}"
@@ -286,7 +240,7 @@ class BlobDetector(QWidget):
         self.keypoints = list(self.detect_blobs())
         self.update_display_image()
         self.update_timepoint()
-        self.keypoint_count_label.setText(f'Keypoints: {len(self.keypoints)}')
+        self.keypoint_count_label.setText(f'Keypoints: {len(self.keypoints) + len(self.contours)}')
 
     def update_display_image(self):
         self.blobs = self.draw_blobs()
@@ -355,9 +309,6 @@ class BlobDetector(QWidget):
         _, mask = cv2.threshold(image, 80, 255, cv2.THRESH_BINARY)
         return cv2.bitwise_and(image, image, mask=mask)
 
-    import cv2
-    import numpy as np
-
     def detect_blobs(self):
         self.contours = []
         # Define kernel for morphological operations
@@ -366,17 +317,54 @@ class BlobDetector(QWidget):
         # Apply Gaussian Blur if the checkbox is checked
         if self.gaussian_blur_checkbox.isChecked():
             self.gray_image = cv2.GaussianBlur(self.gray_image, (5, 5), 0)
+            print("Applied Gaussian Blur")
 
         # Apply morphological operations if the checkbox is checked
         if self.morphological_operations_checkbox.isChecked():
             self.gray_image = cv2.erode(self.gray_image, kernel, iterations=1)
             self.gray_image = cv2.dilate(self.gray_image, kernel, iterations=1)
+            print("Applied Morphological Operations")
 
         # Remove small noise
         self.gray_image = cv2.morphologyEx(self.gray_image, cv2.MORPH_OPEN, kernel, iterations=2)
+        print("Removed small noise")
 
-        # Apply Canny Edge Detection
-        edges = cv2.Canny(self.gray_image, 100, 200)
+        # Apply binary threshold
+        _, binary_image = cv2.threshold(self.gray_image, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        print("Applied binary threshold")
+
+        # Remove small white regions
+        binary_image = cv2.morphologyEx(binary_image, cv2.MORPH_OPEN, kernel, iterations=2)
+        print("Removed small white regions")
+
+        # Sure background area
+        sure_bg = cv2.dilate(binary_image, kernel, iterations=3)
+        print("Found sure background area")
+
+        # Finding sure foreground area
+        dist_transform = cv2.distanceTransform(binary_image, cv2.DIST_L2, 5)
+        _, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
+        print("Found sure foreground area")
+
+        # Finding unknown region
+        sure_fg = np.uint8(sure_fg)
+        unknown = cv2.subtract(sure_bg, sure_fg)
+        print("Found unknown region")
+
+        # Marker labelling
+        _, markers = cv2.connectedComponents(sure_fg)
+        markers = markers + 1
+        markers[unknown == 0] = 0
+        print("Marker labelling completed")
+
+        # Apply the Watershed algorithm
+        try:
+            markers = cv2.watershed(self.image, markers)
+            self.image[markers == -1] = [255, 0, 0]
+            print("Applied Watershed algorithm")
+        except Exception as e:
+            print(f"Error during Watershed algorithm: {e}")
+            return []
 
         # Detect blobs using SimpleBlobDetector
         self.keypoints = [*self.detector.detect(self.gray_image)]
@@ -405,11 +393,9 @@ class BlobDetector(QWidget):
 
         # Debug: Print the number of contours found and their areas
         print(f"Number of contours found: {len(self.contours)}")
-        for i, contour in enumerate(self.contours):
-            print(f"Contour {i} area: {cv2.contourArea(contour)}")
-
+        # for i, contour in enumerate(self.contours):
+        #     print(f"Contour {i} area: {cv2.contourArea(contour)}")
         print(f"Number of keypoints found: {len(self.keypoints)}")
-        return self.keypoints
 
     def draw_blobs(self):
         image_with_keypoints = self.image.copy()
@@ -419,13 +405,7 @@ class BlobDetector(QWidget):
             cv2.circle(image_with_keypoints, (int(x), int(y)), radius, CIRCLE_COLOR, CIRCLE_THICKNESS)
 
         # Draw circles around contours
-        if self.contours:
-            for contour in self.contours:
-                (x, y), radius = cv2.minEnclosingCircle(contour)
-                cv2.circle(image_with_keypoints, (int(x), int(y)), int(radius), CIRCLE_COLOR, CIRCLE_THICKNESS)
-        else:
-            print("No contours to draw.")
-
+        cv2.drawContours(image_with_keypoints, self.contours, -1, CIRCLE_COLOR, CIRCLE_THICKNESS)
         return image_with_keypoints
 
     def wheelEvent(self, event):
@@ -508,6 +488,8 @@ class BlobDetector(QWidget):
     def add_or_remove_keypoint(self, position):
         scene_pos = self.graphics_view.mapToScene(position.toPoint())
         x, y = scene_pos.x(), scene_pos.y()
+
+        # Check if the position is within any keypoint
         for keypoint in self.keypoints:
             kp_x, kp_y = keypoint.pt
             radius = keypoint.size / 2
@@ -517,6 +499,28 @@ class BlobDetector(QWidget):
                 self.update_display_image()
                 self.keypoints_changed.emit(len(self.keypoints))
                 return
+
+        # Check if the position is within any contour
+        for contour in self.contours:
+            if cv2.pointPolygonTest(contour, (x, y), False) >= 0:
+                # Ensure the contour shapes match before removing
+                for existing_contour in self.contours:
+                    if np.array_equal(contour, existing_contour):
+                        self.undo_redo_tracker.push((existing_contour, ActionType.REMOVE))
+                        self.contours.remove(existing_contour)
+                        self.update_display_image()
+                        self.keypoints_changed.emit(len(self.keypoints))
+                        return
+
+        # If not within any keypoint or contour, add a new keypoint
+        keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
+        self.undo_redo_tracker.push((keypoint, ActionType.ADD))
+        self.keypoints.append(keypoint)
+        self.update_display_image()
+        self.keypoints_changed.emit(len(self.keypoints))
+        self.update_timepoint()
+
+        # If not within any keypoint or contour, add a new keypoint
         keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
         self.undo_redo_tracker.push((keypoint, ActionType.ADD))
         self.keypoints.append(keypoint)

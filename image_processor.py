@@ -4,7 +4,7 @@ import re
 
 from PySide6.QtCore import Signal, QObject
 
-from image_reader import BlobDetector
+from blob_detector import BlobDetector
 
 
 class ImageProcessor(QObject):

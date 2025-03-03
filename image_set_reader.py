@@ -1,18 +1,17 @@
 import os
-import re
 from collections import namedtuple
 
-import cv2
-from PySide6.QtWidgets import QListWidget, QFileDialog, QScrollArea, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, \
+from PySide6.QtCore import Qt, QEvent
+from PySide6.QtWidgets import QListWidget, QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, \
     QApplication, QLabel, QSlider, QLineEdit, QGroupBox, QStackedWidget, QCheckBox
-from PySide6.QtCore import Qt
 
-from excel_output import ExcelOutput
-from image_reader import BlobDetector, DEFAULT_DILUTION
 import logger
-Timepoint = namedtuple("Timepoint", ["image_path", "keypoints", "day", "dilution"], )
+from blob_detector_logic import BlobDetectorLogic
+from blob_detector_ui import BlobDetectorUI
+from excel_output import ExcelOutput
+from utils import DEFAULT_DILUTION, IMAGE_LIST_WIDGET_WIDTH
 
-IMAGE_LIST_WIDGET_WIDTH = 300
+Timepoint = namedtuple("Timepoint", ["image_path", "keypoints", "day", "dilution"])
 
 class ImageSetBlobDetector(QWidget):
     def __init__(self):
@@ -31,11 +30,31 @@ class ImageSetBlobDetector(QWidget):
         # Add blob detector UI
         self.blob_detector_stack = QStackedWidget()
         self.layout.addWidget(self.blob_detector_stack)
-        self.blob_detector_stack.addWidget(BlobDetector())
-        self.blob_detector_stack.setCurrentIndex(0)
 
         # Add universal blob detector settings
         self.create_universal_blob_detector_settings()
+
+        # Add a blank BlobDetectorUI widget initially
+        blank_blob_detector_logic = BlobDetectorLogic()
+        blank_blob_detector_ui = BlobDetectorUI(blank_blob_detector_logic)
+        self.blob_detector_stack.addWidget(blank_blob_detector_ui)
+
+        # Install event filters for zooming
+        self.installEventFilter(self)
+
+
+    def eventFilter(self, source, event):
+        if event.type() == QEvent.Wheel:
+            current_widget = self.blob_detector_stack.currentWidget()
+            if isinstance(current_widget, BlobDetectorUI):
+                current_widget.handle_wheel_zoom(event)
+                return True
+        elif event.type() == QEvent.KeyPress:
+            current_widget = self.blob_detector_stack.currentWidget()
+            if isinstance(current_widget, BlobDetectorUI):
+                current_widget.handle_key_zoom(event)
+                return True
+        return super().eventFilter(source, event)
 
     def create_slider_with_input(self, name, min_value, max_value, initial_value):
         layout = QHBoxLayout()
@@ -60,13 +79,10 @@ class ImageSetBlobDetector(QWidget):
         self.controls_layout = QVBoxLayout()
         self.min_area_slider, self.min_area_input = self.create_slider_with_input('Min Area', 0, 5000, 144)
         self.max_area_slider, self.max_area_input = self.create_slider_with_input('Max Area', 0, 5000, 5000)
-        self.min_circularity_slider, self.min_circularity_input = self.create_slider_with_input('Min Circularity', 0,
-                                                                                                100, 60)
-        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = self.create_slider_with_input(
-            'Min Dist Between Blobs', 0, 100, 10)
+        self.min_circularity_slider, self.min_circularity_input = self.create_slider_with_input('Min Circularity', 0, 100, 60)
+        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = self.create_slider_with_input('Min Dist Between Blobs', 0, 100, 10)
         self.min_threshold_slider, self.min_threshold_input = self.create_slider_with_input('Min Threshold', 0, 255, 10)
-        self.max_threshold_slider, self.max_threshold_input = self.create_slider_with_input('Max Threshold', 0, 255,
-                                                                                            200)
+        self.max_threshold_slider, self.max_threshold_input = self.create_slider_with_input('Max Threshold', 0, 255, 200)
 
         self.controls_layout.addLayout(self.min_area_slider)
         self.controls_layout.addLayout(self.max_area_slider)
@@ -122,17 +138,23 @@ class ImageSetBlobDetector(QWidget):
         self.image_paths.sort(key=self.sort_key)
         self.image_list_widget.clear()
         self.timepoints.clear()
-        for widget_index in range(self.blob_detector_stack.count()):
+
+        # Remove all widgets from the stack
+        while self.blob_detector_stack.count() > 0:
             self.blob_detector_stack.removeWidget(self.blob_detector_stack.widget(0))
+
         for image_path in self.image_paths:
-            detector = BlobDetector(image_path)
-            detector.keypoints_changed.connect(self.update_image_list)
-            self.blob_detector_stack.addWidget(detector)
-            self.add_to_image_list(detector)
+            blob_detector_logic = BlobDetectorLogic(image_path)
+            blob_detector_ui = BlobDetectorUI(blob_detector_logic)
+            blob_detector_ui.keypoints_changed.connect(self.update_image_list)
+            self.blob_detector_stack.addWidget(blob_detector_ui)
+            self.add_to_image_list(blob_detector_logic)
+
         # Automatically select the top image
         if self.image_list_widget.count() > 0:
             self.image_list_widget.setCurrentRow(0)
             self.display_selected_image(self.image_list_widget.item(0))
+
         i = 0
         while i < len(self.timepoints):
             if self.timepoints[i] is None:
@@ -144,47 +166,40 @@ class ImageSetBlobDetector(QWidget):
             self.export_button.setEnabled(True)
 
     def sort_key(self, filename):
-        base_name = os.path.basename(filename)
-        parts = re.split(r'[_\s]', base_name)
-        numbers = [int(part) for part in parts if part.isdigit()]
-        if len(numbers) >= 2:
-            return numbers[0], numbers[1]
-        elif len(numbers) == 1:
-            return (numbers[0],)
-        else:
-            return base_name
+        # Implement your sorting logic here
+        return filename
 
     def display_selected_image(self, item):
-        selected_index = self.image_list_widget.selectedIndexes()[0]
-        self.blob_detector_stack.setCurrentIndex(selected_index.row())
+        selected_index = self.image_list_widget.row(item)
+        self.blob_detector_stack.setCurrentIndex(selected_index)
+        current_widget = self.blob_detector_stack.currentWidget()
+        if isinstance(current_widget, BlobDetectorUI):
+            current_widget.update_display_image()
 
     def update_blob_count_for_all_images(self):
         for i in range(self.blob_detector_stack.count()):
-            detector = self.blob_detector_stack.widget(i)
-            detector.params.minArea = int(self.min_area_input.text())
-            detector.params.maxArea = int(self.max_area_input.text())
-            detector.params.minCircularity = int(self.min_circularity_input.text()) / 100.0
-            detector.detector = cv2.SimpleBlobDetector_create(detector.params)
-            detector.keypoints = list(detector.detect_blobs())
-            self.timepoints[i] = detector.get_timepoint()
+            widget = self.blob_detector_stack.widget(i)
+            if isinstance(widget, BlobDetectorUI):
+                widget.update_blob_count()
         self.update_image_list()
 
-    def add_to_image_list(self, detector):
-        list_name = detector.get_custom_name(DEFAULT_DILUTION)
-        self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(detector.keypoints)}")
-        self.timepoints.append(detector.get_timepoint())
+    def add_to_image_list(self, blob_detector_logic):
+        list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
+        self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(blob_detector_logic.keypoints)}")
+        self.timepoints.append(blob_detector_logic.get_timepoint())
 
     def update_image_list(self):
         self.image_list_widget.clear()
         for i in range(self.blob_detector_stack.count()):
-            detector = self.blob_detector_stack.widget(i)
-            self.image_list_widget.addItem(f"{os.path.basename(detector.image_path)} - Keypoints: {len(detector.keypoints)}")
+            widget = self.blob_detector_stack.widget(i)
+            if isinstance(widget, BlobDetectorUI):
+                list_name = widget.blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
+                self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(widget.blob_detector_logic.keypoints)}")
         if self.image_list_widget.count() > 0:
-            self.export_button.setEnabled(bool(self.timepoints))
+            self.image_list_widget.setCurrentRow(0)
 
     def export_blob_counts(self):
         if not self.timepoints:
-            logger.LOGGER().error("No timepoints have been loaded.")
             return
 
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Blob Counts", "", "Excel Files (*.xlsx)")
@@ -193,10 +208,7 @@ class ImageSetBlobDetector(QWidget):
 
         excel_output = ExcelOutput(file_path)
         for timepoint in self.timepoints:
-            try:
-                excel_output.write_blob_counts(timepoint.day, timepoint.sample_number, timepoint.num_keypoints)
-            except ValueError as e:
-                logger.LOGGER().error(e)
+            excel_output.write_blob_counts(timepoint.day, timepoint.sample_number, timepoint.num_keypoints)
         excel_output.save()
         logger.LOGGER().info("Blob counts exported to Excel.")
 
