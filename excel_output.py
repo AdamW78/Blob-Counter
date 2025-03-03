@@ -1,4 +1,5 @@
 import openpyxl
+from openpyxl.cell import MergedCell
 
 import logger
 
@@ -12,8 +13,9 @@ class ExcelOutput:
     def find_day_column(self, day_num):
         for col in self.sheet.iter_cols(min_row=1, max_row=1):
             for cell in col:
-                logger.LOGGER().debug(f"CELL ADDRESS: {cell.column_letter+"1"}, VALUE: {cell.value} - Looking for: {day_num}")
-                if cell.value == day_num:
+                if not isinstance(cell, MergedCell):
+                    logger.LOGGER().debug(f"CELL ADDRESS: {cell.column_letter+"1"}, VALUE: {cell.value} - Looking for: {day_num}")
+                if cell.value == day_num or str(cell.value).lower() == f"day {day_num}":
                     return cell.column
         return None
 

@@ -3,7 +3,8 @@ import re
 from collections import namedtuple
 
 import cv2
-from PySide6.QtWidgets import QListWidget, QFileDialog, QScrollArea, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QApplication, QLabel, QSlider, QLineEdit, QGroupBox, QStackedWidget
+from PySide6.QtWidgets import QListWidget, QFileDialog, QScrollArea, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, \
+    QApplication, QLabel, QSlider, QLineEdit, QGroupBox, QStackedWidget, QCheckBox
 from PySide6.QtCore import Qt
 
 from excel_output import ExcelOutput
@@ -61,10 +62,24 @@ class ImageSetBlobDetector(QWidget):
         self.max_area_slider, self.max_area_input = self.create_slider_with_input('Max Area', 0, 5000, 5000)
         self.min_circularity_slider, self.min_circularity_input = self.create_slider_with_input('Min Circularity', 0,
                                                                                                 100, 60)
+        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = self.create_slider_with_input(
+            'Min Dist Between Blobs', 0, 100, 10)
+        self.min_threshold_slider, self.min_threshold_input = self.create_slider_with_input('Min Threshold', 0, 255, 10)
+        self.max_threshold_slider, self.max_threshold_input = self.create_slider_with_input('Max Threshold', 0, 255,
+                                                                                            200)
 
         self.controls_layout.addLayout(self.min_area_slider)
         self.controls_layout.addLayout(self.max_area_slider)
         self.controls_layout.addLayout(self.min_circularity_slider)
+        self.controls_layout.addLayout(self.min_dist_between_blobs_slider)
+        self.controls_layout.addLayout(self.min_threshold_slider)
+        self.controls_layout.addLayout(self.max_threshold_slider)
+
+        # Add checkboxes for preprocessing features
+        self.gaussian_blur_checkbox = QCheckBox('Apply Gaussian Blur')
+        self.morphological_operations_checkbox = QCheckBox('Apply Morphological Operations')
+        self.controls_layout.addWidget(self.gaussian_blur_checkbox)
+        self.controls_layout.addWidget(self.morphological_operations_checkbox)
 
         # Add button to update blob count for all images
         self.update_all_button = QPushButton('Update Blob Count for All Images')
