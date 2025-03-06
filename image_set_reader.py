@@ -1,3 +1,4 @@
+import math
 import os
 from collections import namedtuple
 
@@ -209,8 +210,10 @@ class ImageSetBlobDetector(QWidget):
                 widget.blob_detector_logic.update_timepoint()
                 timepoints_with_widgets.append((widget.blob_detector_logic.get_timepoint(), widget))
 
+
+
         # Sort timepoints and widgets by sample number
-        timepoints_with_widgets.sort(key=lambda x: x[0].sample_number)
+        timepoints_with_widgets.sort(key=lambda x: x[0].sample_number if x[0] else -1)
 
         # Re-order widgets in the stack
         for index, (timepoint, widget) in enumerate(timepoints_with_widgets):
@@ -239,10 +242,11 @@ class ImageSetBlobDetector(QWidget):
                 widget.blob_detector_logic.update_timepoint()
                 self.timepoints.append(widget.blob_detector_logic.get_timepoint())
 
-        self.timepoints.sort(key=lambda x: x.sample_number)  # Ensure timepoints are sorted by sample number
+        self.timepoints.sort(key=lambda x: x.sample_number if x else math.inf)  # Ensure timepoints are sorted by sample number
         excel_output = ExcelOutput(file_path)
         for timepoint in self.timepoints:
-            excel_output.write_blob_counts(timepoint.day, timepoint.sample_number, timepoint.num_keypoints)
+            if timepoint is not None:
+                excel_output.write_blob_counts(timepoint.day, timepoint.sample_number, timepoint.num_keypoints)
         excel_output.save()
         logger.LOGGER().info("Blob counts exported to Excel.")
 

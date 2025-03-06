@@ -4,8 +4,9 @@ from PySide6 import QtCore
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 from PySide6.QtGui import QImage, QPixmap, QWheelEvent, QKeyEvent
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton, QCheckBox, \
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture
+    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture, QGestureRecognizer
 
+from three_finger_pan_gesture import ThreeFingerPanGestureRecognizer
 from utils import GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT, MIN_AREA, MAX_AREA, DEFAULT_MIN_AREA, DEFAULT_MAX_AREA, \
     DEFAULT_MIN_CONVEXITY, DEFAULT_MIN_CIRCULARITY, DEFAULT_MIN_INERTIA_RATIO, MAX_DISTANCE_BETWEEN_BLOBS, \
     MIN_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS, MIN_SCALE_FACTOR, MAX_SCALE_FACTOR, \
@@ -71,8 +72,10 @@ class BlobDetectorUI(QWidget):
         # Install event filters for zooming and gestures
         self.installEventFilter(self)
         self.graphics_view.viewport().grabGesture(Qt.GestureType.SwipeGesture)
-        self.graphics_view.viewport().grabGesture(Qt.GestureType.PanGesture)
         self.graphics_view.viewport().grabGesture(Qt.GestureType.PinchGesture)
+        recognizer = ThreeFingerPanGestureRecognizer()
+        self.three_finger_gesture_type = QGestureRecognizer.registerRecognizer(recognizer)
+        self.graphics_view.viewport().grabGesture(self.three_finger_gesture_type)
 
     def fit_in_view(self):
         rect = self.graphics_scene.itemsBoundingRect()
@@ -217,16 +220,34 @@ class BlobDetectorUI(QWidget):
                 self.graphics_view.scale(zoom_factor, zoom_factor)
                 self.current_scale_factor = new_scale_factor
 
-    def handle_pan_gesture(self, gesture: QGesture):
-        assert gesture is not None
-        assert gesture.gestureType() is Qt.GestureType.PanGesture
+    def handle_pinch_gesture(self, gesture: QGesture):
+        if gesture is None or gesture.gestureType() is not Qt.GestureType.PinchGesture:
+            return False
+        pinch_gesture = gesture
+        scale_factor = pinch_gesture.scaleFactor()
+        new_scale_factor = self.current_scale_factor * scale_factor
+        if MIN_SCALE_FACTOR <= new_scale_factor <= MAX_SCALE_FACTOR:
+            self.graphics_view.scale(scale_factor, scale_factor)
+            self.current_scale_factor = new_scale_factor
+        return True
 
+    def handle_swipe_gesture(self, gesture: QGesture):
+        if gesture is None or gesture.gestureType() is not Qt.GestureType.SwipeGesture:
+            return False
+        swipe_gesture = gesture
+        delta = swipe_gesture.delta()
+        self.graphics_view.horizontalScrollBar().setValue(self.graphics_view.horizontalScrollBar().value() - delta.x())
+        self.graphics_view.verticalScrollBar().setValue(self.graphics_view.verticalScrollBar().value() - delta.y())
+        return True
 
     def handle_gesture_event(self, event: QGestureEvent):
         for gesture in event.gestures():
-            if gesture.gestureType() is Qt.GestureType.PanGesture:
-                return self.handle_pan_gesture(gesture)
-        return True
+            if gesture.gestureType() is Qt.GestureType.PinchGesture:
+                return self.handle_pinch_gesture(gesture)
+            elif gesture.gestureType() is Qt.GestureType.SwipeGesture:
+                return self.handle_swipe_gesture(gesture)
+            else:
+                return False
 
     def add_or_remove_keypoint(self, position):
         scene_pos = self.graphics_view.mapToScene(position.toPoint())
