@@ -1,10 +1,12 @@
 import math
 import os
+import xml.etree.ElementTree as ET
 from collections import namedtuple
 
+import cv2
 from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import QListWidget, QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, \
-    QApplication, QLabel, QSlider, QLineEdit, QGroupBox, QStackedWidget, QCheckBox
+    QApplication, QLabel, QSlider, QLineEdit, QGroupBox, QStackedWidget, QCheckBox, QProgressDialog
 
 import logger
 from blob_detector_logic import BlobDetectorLogic
@@ -181,11 +183,22 @@ class ImageSetBlobDetector(QWidget):
             current_widget.update_display_image()
 
     def update_blob_count_for_all_images(self):
+        progress_dialog = QProgressDialog("Counting blobs...", "Cancel", 0, self.blob_detector_stack.count(), self)
+        progress_dialog.setWindowModality(Qt.WindowModal)
+        progress_dialog.setValue(0)
+        progress_dialog.show()  # Ensure the dialog is shown
+
         for i in range(self.blob_detector_stack.count()):
+            if progress_dialog.wasCanceled():
+                break
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
                 widget.update_blob_count()
+            progress_dialog.setValue(i + 1)
+            QApplication.processEvents()  # Ensure the dialog updates
+
         self.update_image_list()
+        progress_dialog.setValue(self.blob_detector_stack.count())  # Ensure the progress bar is complete
 
     def add_to_image_list(self, blob_detector_logic):
         list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
@@ -242,13 +255,58 @@ class ImageSetBlobDetector(QWidget):
                 widget.blob_detector_logic.update_timepoint()
                 self.timepoints.append(widget.blob_detector_logic.get_timepoint())
 
-        self.timepoints.sort(key=lambda x: x.sample_number if x else math.inf)  # Ensure timepoints are sorted by sample number
+        self.timepoints.sort(
+            key=lambda x: x.sample_number if x else math.inf)  # Ensure timepoints are sorted by sample number
         excel_output = ExcelOutput(file_path)
         for timepoint in self.timepoints:
             if timepoint is not None:
                 excel_output.write_blob_counts(timepoint.day, timepoint.sample_number, timepoint.num_keypoints)
         excel_output.save()
+
+        self.save_all_keypoints_as_xml()
+
+        for timepoint in self.timepoints:
+            if timepoint is not None:
+                self.save_image_with_keypoints(timepoint)
+
         logger.LOGGER().info("Blob counts exported to Excel.")
+
+    def save_image_with_keypoints(self, timepoint):
+        for i in range(self.blob_detector_stack.count()):
+            widget = self.blob_detector_stack.widget(i)
+            if isinstance(widget, BlobDetectorUI) and widget.blob_detector_logic.get_timepoint() == timepoint:
+                image_with_keypoints = widget.blob_detector_logic.get_display_image()
+                day_folder = os.path.join("counted_images", f"Day {timepoint.day}")
+                os.makedirs(day_folder, exist_ok=True)
+                image_path = os.path.join(day_folder, f"Sample_{timepoint.sample_number}.png")
+                cv2.imwrite(image_path, cv2.cvtColor(image_with_keypoints, cv2.COLOR_RGB2BGR))
+                break
+
+    def save_all_keypoints_as_xml(self):
+        keypoints_by_timepoint = {}
+        for i in range(self.blob_detector_stack.count()):
+            widget = self.blob_detector_stack.widget(i)
+            if isinstance(widget, BlobDetectorUI):
+                keypoints = widget.blob_detector_logic.keypoints
+                timepoint = widget.blob_detector_logic.get_timepoint()
+                if timepoint not in keypoints_by_timepoint:
+                    keypoints_by_timepoint[timepoint] = []
+                keypoints_by_timepoint[timepoint].extend(keypoints)
+
+        for timepoint, keypoints in keypoints_by_timepoint.items():
+            if timepoint is None:
+                continue
+            day_folder = os.path.join("counted_images", f"Day {timepoint.day}")
+            os.makedirs(day_folder, exist_ok=True)
+            xml_path = os.path.join(day_folder, f"Sample_{timepoint.sample_number}.xml")
+            root = ET.Element("Keypoints")
+            for keypoint in keypoints:
+                kp_element = ET.SubElement(root, "Keypoint")
+                ET.SubElement(kp_element, "X").text = str(keypoint.pt[0])
+                ET.SubElement(kp_element, "Y").text = str(keypoint.pt[1])
+                ET.SubElement(kp_element, "Size").text = str(keypoint.size)
+            tree = ET.ElementTree(root)
+            tree.write(xml_path)
 
 if __name__ == "__main__":
     app = QApplication([])
