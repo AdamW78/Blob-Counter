@@ -30,4 +30,14 @@ USE_DILUTION = True
 USE_DAY = True
 IMAGE_LIST_WIDGET_WIDTH = 300
 
+# Tooltips
+TOOLTIP_MIN_AREA = "Minimum area of blobs to detect"
+TOOLTIP_MAX_AREA = "Maximum area of blobs to detect"
+TOOLTIP_MIN_CIRCULARITY = "Minimum circularity of blobs to detect"
+TOOLTIP_MIN_CONVEXITY = "Minimum convexity of blobs to detect"
+TOOLTIP_MIN_INERTIA_RATIO = "Minimum inertia ratio of blobs to detect"
+TOOLTIP_MIN_DIST_BETWEEN_BLOBS = "Minimum distance between blobs"
+TOOLTIP_MIN_THRESHOLD = "Minimum threshold for blob detection"
+TOOLTIP_MAX_THRESHOLD = "Maximum threshold for blob detection"
+
 Timepoint = namedtuple("Timepoint", ["day", "sample_number", "dilution", "num_keypoints"])

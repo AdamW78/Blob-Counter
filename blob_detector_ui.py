@@ -7,10 +7,12 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture, QGestureRecognizer
 
 from three_finger_pan_gesture import ThreeFingerPanGestureRecognizer
+from ui_utils import UIUtils
 from utils import GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT, MIN_AREA, MAX_AREA, DEFAULT_MIN_AREA, DEFAULT_MAX_AREA, \
     DEFAULT_MIN_CONVEXITY, DEFAULT_MIN_CIRCULARITY, DEFAULT_MIN_INERTIA_RATIO, MAX_DISTANCE_BETWEEN_BLOBS, \
     MIN_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS, MIN_SCALE_FACTOR, MAX_SCALE_FACTOR, \
-    NEW_KEYPOINT_SIZE
+    NEW_KEYPOINT_SIZE, TOOLTIP_MIN_AREA, TOOLTIP_MAX_AREA, TOOLTIP_MIN_CIRCULARITY, TOOLTIP_MIN_CONVEXITY, \
+    TOOLTIP_MIN_INERTIA_RATIO, TOOLTIP_MIN_DIST_BETWEEN_BLOBS
 
 
 class BlobDetectorUI(QWidget):
@@ -28,6 +30,7 @@ class BlobDetectorUI(QWidget):
         if not blob_detector_logic.image_path:
             self.disable_all_widgets()
 
+
     def initUI(self):
         self.setWindowTitle("Blob Detector")
         self.layout = QVBoxLayout(self)
@@ -35,12 +38,12 @@ class BlobDetectorUI(QWidget):
         self.keypoint_count_label = QLabel('Keypoints: 0')
         self.layout.addWidget(self.keypoint_count_label)
 
-        self.min_area_slider, self.min_area_input = self.create_slider_with_input('Min Area', MIN_AREA, MAX_AREA, DEFAULT_MIN_AREA)
-        self.max_area_slider, self.max_area_input = self.create_slider_with_input('Max Area', MIN_AREA, MAX_AREA, DEFAULT_MAX_AREA)
-        self.min_circularity_slider, self.min_circularity_input = self.create_slider_with_input('Min Circularity', 0, 100, int(DEFAULT_MIN_CIRCULARITY * 100))
-        self.min_convexity_slider, self.min_convexity_input = self.create_slider_with_input('Min Convexity', 0, 100, int(DEFAULT_MIN_CONVEXITY * 100))
-        self.min_inertia_ratio_slider, self.min_inertia_ratio_input = self.create_slider_with_input('Min Inertia Ratio', 0, 100, int(DEFAULT_MIN_INERTIA_RATIO * 100))
-        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = self.create_slider_with_input('Min Dist Between Blobs', MIN_DISTANCE_BETWEEN_BLOBS, MAX_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS)
+        self.min_area_slider, self.min_area_input = UIUtils.create_slider_with_input('Min Area', MIN_AREA, MAX_AREA, DEFAULT_MIN_AREA, TOOLTIP_MIN_AREA)
+        self.max_area_slider, self.max_area_input = UIUtils.create_slider_with_input('Max Area', MIN_AREA, MAX_AREA, DEFAULT_MAX_AREA, TOOLTIP_MAX_AREA)
+        self.min_circularity_slider, self.min_circularity_input = UIUtils.create_slider_with_input('Min Circularity', 0, 100, int(DEFAULT_MIN_CIRCULARITY * 100), TOOLTIP_MIN_CIRCULARITY)
+        self.min_convexity_slider, self.min_convexity_input = UIUtils.create_slider_with_input('Min Convexity', 0, 100, int(DEFAULT_MIN_CONVEXITY * 100), TOOLTIP_MIN_CONVEXITY)
+        self.min_inertia_ratio_slider, self.min_inertia_ratio_input = UIUtils.create_slider_with_input('Min Inertia Ratio', 0, 100, int(DEFAULT_MIN_INERTIA_RATIO * 100), TOOLTIP_MIN_INERTIA_RATIO)
+        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = UIUtils.create_slider_with_input('Min Dist Between Blobs', MIN_DISTANCE_BETWEEN_BLOBS, MAX_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS, TOOLTIP_MIN_DIST_BETWEEN_BLOBS)
 
         self.layout.addLayout(self.min_area_slider)
         self.layout.addLayout(self.max_area_slider)
@@ -69,13 +72,9 @@ class BlobDetectorUI(QWidget):
 
         self.graphics_view.setDragMode(QGraphicsView.NoDrag)
         self.graphics_view.viewport().installEventFilter(self)
-        # Install event filters for zooming and gestures
         self.installEventFilter(self)
         self.graphics_view.viewport().grabGesture(Qt.GestureType.SwipeGesture)
         self.graphics_view.viewport().grabGesture(Qt.GestureType.PinchGesture)
-        recognizer = ThreeFingerPanGestureRecognizer()
-        self.three_finger_gesture_type = QGestureRecognizer.registerRecognizer(recognizer)
-        self.graphics_view.viewport().grabGesture(self.three_finger_gesture_type)
 
     def fit_in_view(self):
         rect = self.graphics_scene.itemsBoundingRect()
@@ -87,23 +86,6 @@ class BlobDetectorUI(QWidget):
         self.graphics_view.scale(scale, scale)
         # Center the view
         self.graphics_view.centerOn(rect.center())
-
-    def create_slider_with_input(self, name, min_value, max_value, initial_value):
-        layout = QHBoxLayout()
-        label = QLabel(name)
-        layout.addWidget(label)
-        slider = QSlider(Qt.Horizontal)
-        slider.setRange(min_value, max_value)
-        slider.setValue(initial_value)
-        layout.addWidget(slider)
-        input_field = QLineEdit(str(initial_value))
-        input_field.setFixedWidth(50)
-        layout.addWidget(input_field)
-
-        slider.valueChanged.connect(lambda value: input_field.setText(str(value)))
-        input_field.editingFinished.connect(lambda: slider.setValue(int(input_field.text()) if input_field.text().isdigit() else min_value))
-
-        return layout, input_field
 
     def disable_all_widgets(self):
         self.keypoint_count_label.setEnabled(False)

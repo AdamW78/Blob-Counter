@@ -1,24 +1,69 @@
+import concurrent.futures
+import logging
+
+from PySide6.QtGui import QWheelEvent
+
+from ui_utils import UIUtils
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 import math
 import os
+import xml.dom.minidom
 import xml.etree.ElementTree as ET
 from collections import namedtuple
-
 import cv2
-from PySide6.QtCore import Qt, QEvent
+from PySide6.QtCore import Qt, QEvent, QThread, Signal, QObject
 from PySide6.QtWidgets import QListWidget, QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, \
-    QApplication, QLabel, QSlider, QLineEdit, QGroupBox, QStackedWidget, QCheckBox, QProgressDialog
+    QApplication, QLabel, QSlider, QLineEdit, QGroupBox, QStackedWidget, QCheckBox, QProgressDialog, QMessageBox
 
 import logger
 from blob_detector_logic import BlobDetectorLogic
 from blob_detector_ui import BlobDetectorUI
 from excel_output import ExcelOutput
-from utils import DEFAULT_DILUTION, IMAGE_LIST_WIDGET_WIDTH
+from logger import LOGGER
+from utils import DEFAULT_DILUTION, IMAGE_LIST_WIDGET_WIDTH, TOOLTIP_MIN_AREA, TOOLTIP_MAX_AREA, \
+    TOOLTIP_MIN_CIRCULARITY, TOOLTIP_MIN_CONVEXITY, TOOLTIP_MIN_INERTIA_RATIO, TOOLTIP_MIN_THRESHOLD, \
+    TOOLTIP_MAX_THRESHOLD, TOOLTIP_MIN_DIST_BETWEEN_BLOBS
 
 Timepoint = namedtuple("Timepoint", ["image_path", "keypoints", "day", "dilution", "sample_number"])
+
+# image_set_reader.py
+class BlobCounterWorker(QObject):
+    finished = Signal()
+    error = Signal(str)
+
+    def __init__(self, blob_detector_logic, min_area, max_area, min_circularity, min_dist_between_blobs,
+                 min_threshold, max_threshold, apply_gaussian_blur, apply_morphological_operations):
+        super().__init__()
+        self.blob_detector_logic = blob_detector_logic
+        self.min_area = min_area
+        self.max_area = max_area
+        self.min_circularity = min_circularity
+        self.min_dist_between_blobs = min_dist_between_blobs
+        self.min_threshold = min_threshold
+        self.max_threshold = max_threshold
+        self.apply_gaussian_blur = apply_gaussian_blur
+        self.apply_morphological_operations = apply_morphological_operations
+
+    def run(self):
+        try:
+            self.blob_detector_logic.update_blob_count(self.min_area, self.max_area, self.min_circularity, self.min_convexity, self.min_inertia_ratio,
+                                  self.min_dist_between_blobs, self.apply_gaussian_blur, self.apply_morphological_operations)
+            self.blob_detector_logic.update_blob_count(
+                self.min_area, self.max_area, self.min_circularity, self.min_dist_between_blobs,
+                self.min_threshold, self.max_threshold, self.apply_gaussian_blur,
+                self.apply_morphological_operations
+            )
+            self.blob_detector_logic.update_timepoint()
+            self.finished.emit()
+        except Exception as e:
+            self.error.emit(str(e))
 
 class ImageSetBlobDetector(QWidget):
     def __init__(self):
         super().__init__()
+        self.blob_detector_logic_list= []
         self.image_paths = []
         self.timepoints = []
         self.initUI()
@@ -33,6 +78,7 @@ class ImageSetBlobDetector(QWidget):
         # Add blob detector UI
         self.blob_detector_stack = QStackedWidget()
         self.layout.addWidget(self.blob_detector_stack)
+        self.progress_dialog = None
 
         # Add universal blob detector settings
         self.create_universal_blob_detector_settings()
@@ -45,15 +91,17 @@ class ImageSetBlobDetector(QWidget):
         # Install event filters for zooming
         self.installEventFilter(self)
 
+    # noinspection PyTypeChecker
     def eventFilter(self, source, event):
-        if event.type() == QEvent.Gesture:
+        if event.type() == QEvent.Type.Gesture:
             return self.handle_gesture_event(event)
-        elif event.type() == QEvent.Wheel:
+        elif event.type() == QEvent.Type.Wheel:
+            event = event if isinstance(event, QWheelEvent) else None
             current_widget = self.blob_detector_stack.currentWidget()
             if isinstance(current_widget, BlobDetectorUI):
                 current_widget.handle_wheel_zoom(event)
                 return True
-        elif event.type() == QEvent.KeyPress:
+        elif event.type() == QEvent.Type.KeyPress:
             current_widget = self.blob_detector_stack.currentWidget()
             if isinstance(current_widget, BlobDetectorUI):
                 current_widget.handle_key_zoom(event)
@@ -73,58 +121,42 @@ class ImageSetBlobDetector(QWidget):
             return True
         return False
 
-    def create_slider_with_input(self, name, min_value, max_value, initial_value):
-        layout = QHBoxLayout()
-        label = QLabel(name)
-        layout.addWidget(label)
-        slider = QSlider(Qt.Horizontal)
-        slider.setRange(min_value, max_value)
-        slider.setValue(initial_value)
-        layout.addWidget(slider)
-        input_field = QLineEdit(str(initial_value))
-        input_field.setFixedWidth(50)
-        layout.addWidget(input_field)
-
-        slider.valueChanged.connect(lambda value: input_field.setText(str(value)))
-        input_field.editingFinished.connect(lambda: slider.setValue(int(input_field.text()) if input_field.text().isdigit() else min_value))
-
         return layout, input_field
 
     def create_universal_blob_detector_settings(self):
-        # Add universal sliders and text inputs in a group box
         self.controls_group_box = QGroupBox("Blob Detection Parameters - All Images")
         self.controls_layout = QVBoxLayout()
-        self.min_area_slider, self.min_area_input = self.create_slider_with_input('Min Area', 0, 5000, 144)
-        self.max_area_slider, self.max_area_input = self.create_slider_with_input('Max Area', 0, 5000, 5000)
-        self.min_circularity_slider, self.min_circularity_input = self.create_slider_with_input('Min Circularity', 0, 100, 60)
-        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = self.create_slider_with_input('Min Dist Between Blobs', 0, 100, 10)
-        self.min_threshold_slider, self.min_threshold_input = self.create_slider_with_input('Min Threshold', 0, 255, 10)
-        self.max_threshold_slider, self.max_threshold_input = self.create_slider_with_input('Max Threshold', 0, 255, 200)
+        self.min_area_slider, self.min_area_input = UIUtils.create_slider_with_input('Min Area', 0, 5000, 144, TOOLTIP_MIN_AREA)
+        self.max_area_slider, self.max_area_input = UIUtils.create_slider_with_input('Max Area', 0, 5000, 5000, TOOLTIP_MAX_AREA)
+        self.min_circularity_slider, self.min_circularity_input = UIUtils.create_slider_with_input('Min Circularity', 0, 100, 60, TOOLTIP_MIN_CIRCULARITY)
+        self.min_convexity_slider, self.min_convexity_input = UIUtils.create_slider_with_input('Min Convexity', 0, 100, 50, TOOLTIP_MIN_CONVEXITY)
+        self.min_inertia_ratio_slider, self.min_inertia_ratio_input = UIUtils.create_slider_with_input('Min Inertia Ratio', 0, 100, 50, TOOLTIP_MIN_INERTIA_RATIO)
+        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = UIUtils.create_slider_with_input('Min Dist Between Blobs', 0, 100, 10, TOOLTIP_MIN_DIST_BETWEEN_BLOBS)
+        self.min_threshold_slider, self.min_threshold_input = UIUtils.create_slider_with_input('Min Threshold', 0, 255, 10, TOOLTIP_MIN_THRESHOLD)
+        self.max_threshold_slider, self.max_threshold_input = UIUtils.create_slider_with_input('Max Threshold', 0, 255, 200, TOOLTIP_MAX_THRESHOLD)
 
         self.controls_layout.addLayout(self.min_area_slider)
         self.controls_layout.addLayout(self.max_area_slider)
         self.controls_layout.addLayout(self.min_circularity_slider)
+        self.controls_layout.addLayout(self.min_convexity_slider)
+        self.controls_layout.addLayout(self.min_inertia_ratio_slider)
         self.controls_layout.addLayout(self.min_dist_between_blobs_slider)
         self.controls_layout.addLayout(self.min_threshold_slider)
         self.controls_layout.addLayout(self.max_threshold_slider)
 
-        # Add checkboxes for preprocessing features
         self.gaussian_blur_checkbox = QCheckBox('Apply Gaussian Blur')
         self.morphological_operations_checkbox = QCheckBox('Apply Morphological Operations')
         self.controls_layout.addWidget(self.gaussian_blur_checkbox)
         self.controls_layout.addWidget(self.morphological_operations_checkbox)
 
-        # Add button to update blob count for all images
         self.update_all_button = QPushButton('Update Blob Count for All Images')
-        self.update_all_button.clicked.connect(self.update_blob_count_for_all_images)
+        self.update_all_button.clicked.connect(self.count_all_blobs)
         self.controls_layout.addWidget(self.update_all_button)
 
-        # Add button to open folder below the scroll pane
         self.open_folder_button = QPushButton('Open Image Set Folder...')
         self.open_folder_button.clicked.connect(self.open_folder)
         self.controls_layout.addWidget(self.open_folder_button)
 
-        # Add export button below the open folder button
         self.export_button = QPushButton('Export Blob Counts')
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self.export_blob_counts)
@@ -152,6 +184,10 @@ class ImageSetBlobDetector(QWidget):
     def load_images_from_folder(self, folder_path):
         self.image_paths = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if
                             f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        if not self.image_paths:
+            LOGGER().warning("No images found in the selected folder.")
+            QMessageBox.warning(self, "No Images Found", "No images found in the selected folder.")
+            return
         self.image_list_widget.clear()
         self.timepoints.clear()
 
@@ -159,12 +195,22 @@ class ImageSetBlobDetector(QWidget):
         while self.blob_detector_stack.count() > 0:
             self.blob_detector_stack.removeWidget(self.blob_detector_stack.widget(0))
 
-        for image_path in self.image_paths:
-            blob_detector_logic = BlobDetectorLogic(image_path)
-            blob_detector_ui = BlobDetectorUI(blob_detector_logic)
-            blob_detector_ui.keypoints_changed.connect(self.update_image_list)
+        progress_dialog = self.show_progress_dialog(len(self.image_paths), "Loading Images...", "Cancel")
+        QApplication.processEvents()
+
+        for i, image_path in enumerate(self.image_paths):
+            blob_detector_ui = BlobDetectorUI(BlobDetectorLogic(image_path))
+            blob_detector_logic = blob_detector_ui.blob_detector_logic
+            blob_detector_ui.keypoints_changed.connect(self.update_displayed_blob_counts)
             self.blob_detector_stack.addWidget(blob_detector_ui)
             self.add_to_image_list(blob_detector_logic)
+            self.blob_detector_logic_list.append(blob_detector_logic)
+
+            progress_dialog.setValue(i + 1)
+            QApplication.processEvents()
+
+        progress_dialog.close()
+        self.blob_detector_logic_list.sort(key=lambda x: x.get_timepoint().sample_number if x.get_timepoint() else -1)
 
         # Automatically select the top image
         if self.image_list_widget.count() > 0:
@@ -182,23 +228,61 @@ class ImageSetBlobDetector(QWidget):
         if isinstance(current_widget, BlobDetectorUI):
             current_widget.update_display_image()
 
-    def update_blob_count_for_all_images(self):
-        progress_dialog = QProgressDialog("Counting blobs...", "Cancel", 0, self.blob_detector_stack.count(), self)
-        progress_dialog.setWindowModality(Qt.WindowModal)
+    def show_progress_dialog(self, max_value, message, cancel_button_text):
+        progress_dialog = QProgressDialog(message, cancel_button_text, 0, max_value, self)
+        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         progress_dialog.setValue(0)
-        progress_dialog.show()  # Ensure the dialog is shown
+        progress_dialog.show()
+        logging.debug("Progress dialog initialized and shown")
+        return progress_dialog
 
+    def count_all_blobs(self):
+        # Update universal settings
+        min_area = int(self.min_area_input.text())
+        max_area = int(self.max_area_input.text())
+        min_circularity = int(self.min_circularity_input.text()) / 100.0
+        min_dist_between_blobs = int(self.min_dist_between_blobs_input.text())
+        min_threshold = int(self.min_threshold_input.text())
+        max_threshold = int(self.max_threshold_input.text())
+        apply_gaussian_blur = self.gaussian_blur_checkbox.isChecked()
+        apply_morphological_operations = self.morphological_operations_checkbox.isChecked()
+
+        progress_dialog = self.show_progress_dialog(len(self.blob_detector_logic_list), "Counting Blobs...", "Cancel")
+        progress_dialog.setValue(0)
+        QApplication.processEvents()
+
+        self.threads = []
+        self.workers = []
+
+        def update_progress():
+            progress_dialog.setValue(progress_dialog.value() + 1)
+            if progress_dialog.value() == len(self.blob_detector_logic_list):
+                progress_dialog.close()
+            QApplication.processEvents()
+
+        for logic in self.blob_detector_logic_list:
+            worker = BlobCounterWorker(logic, min_area, max_area, min_circularity, min_dist_between_blobs,
+                                       min_threshold, max_threshold, apply_gaussian_blur,
+                                       apply_morphological_operations)
+            thread = QThread()
+            worker.moveToThread(thread)
+            worker.finished.connect(update_progress)
+            worker.finished.connect(thread.quit)
+            worker.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            worker.error.connect(lambda e: logging.error(f"Error counting blobs: {e}"))
+            thread.started.connect(worker.run)
+            self.threads.append(thread)
+            self.workers.append(worker)
+            thread.start()
+
+        self.update_displayed_blob_counts()
+
+    def update_displayed_blob_counts(self):
         for i in range(self.blob_detector_stack.count()):
-            if progress_dialog.wasCanceled():
-                break
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
-                widget.update_blob_count()
-            progress_dialog.setValue(i + 1)
-            QApplication.processEvents()  # Ensure the dialog updates
-
-        self.update_image_list()
-        progress_dialog.setValue(self.blob_detector_stack.count())  # Ensure the progress bar is complete
+                widget.update_display_image()
 
     def add_to_image_list(self, blob_detector_logic):
         list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
@@ -268,6 +352,7 @@ class ImageSetBlobDetector(QWidget):
         for timepoint in self.timepoints:
             if timepoint is not None:
                 self.save_image_with_keypoints(timepoint)
+        LOGGER().info("Images with counted keypoints saved to disk.")
 
         logger.LOGGER().info("Blob counts exported to Excel.")
 
@@ -279,34 +364,41 @@ class ImageSetBlobDetector(QWidget):
                 day_folder = os.path.join("counted_images", f"Day {timepoint.day}")
                 os.makedirs(day_folder, exist_ok=True)
                 image_path = os.path.join(day_folder, f"Sample_{timepoint.sample_number}.png")
-                cv2.imwrite(image_path, cv2.cvtColor(image_with_keypoints, cv2.COLOR_RGB2BGR))
+                cv2.imwrite(image_path, cv2.cvtColor(image_with_keypoints, cv2.COLOR_RGB2BGR))  # Convert RGB to BGR
                 break
 
+
     def save_all_keypoints_as_xml(self):
-        keypoints_by_timepoint = {}
+        root = ET.Element("Keypoints")
+        day_element = None
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
                 keypoints = widget.blob_detector_logic.keypoints
                 timepoint = widget.blob_detector_logic.get_timepoint()
-                if timepoint not in keypoints_by_timepoint:
-                    keypoints_by_timepoint[timepoint] = []
-                keypoints_by_timepoint[timepoint].extend(keypoints)
+                if timepoint is None:
+                    continue
+                if day_element is None or day_element.get("number") != str(timepoint.day):
+                    day_element = ET.SubElement(root, "Day")
+                    day_element.set("number", str(timepoint.day))
+                sample_element = ET.SubElement(day_element, "Sample")
+                sample_element.set("number", str(timepoint.sample_number))
+                for keypoint in keypoints:
+                    kp_element = ET.SubElement(sample_element, "Keypoint")
+                    ET.SubElement(kp_element, "X").text = str(keypoint.pt[0])
+                    ET.SubElement(kp_element, "Y").text = str(keypoint.pt[1])
+                    ET.SubElement(kp_element, "Size").text = str(keypoint.size)
 
-        for timepoint, keypoints in keypoints_by_timepoint.items():
-            if timepoint is None:
-                continue
-            day_folder = os.path.join("counted_images", f"Day {timepoint.day}")
-            os.makedirs(day_folder, exist_ok=True)
-            xml_path = os.path.join(day_folder, f"Sample_{timepoint.sample_number}.xml")
-            root = ET.Element("Keypoints")
-            for keypoint in keypoints:
-                kp_element = ET.SubElement(root, "Keypoint")
-                ET.SubElement(kp_element, "X").text = str(keypoint.pt[0])
-                ET.SubElement(kp_element, "Y").text = str(keypoint.pt[1])
-                ET.SubElement(kp_element, "Size").text = str(keypoint.size)
-            tree = ET.ElementTree(root)
-            tree.write(xml_path)
+        xml_path = os.path.join("counted_images", "keypoints.xml")
+
+        # Pretty print the XML
+        xml_str = ET.tostring(root, encoding='utf-8')
+        parsed_xml = xml.dom.minidom.parseString(xml_str)
+        pretty_xml_str = parsed_xml.toprettyxml(indent="  ")
+
+        with open(xml_path, "w") as f:
+            f.write(pretty_xml_str)
+        LOGGER().debug("Keypoints exported to XML and saved to disk.")
 
 if __name__ == "__main__":
     app = QApplication([])
