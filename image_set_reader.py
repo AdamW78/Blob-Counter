@@ -219,10 +219,11 @@ class ImageSetBlobDetector(QWidget):
         apply_gaussian_blur = self.gaussian_blur_checkbox.isChecked()
         apply_morphological_operations = self.morphological_operations_checkbox.isChecked()
 
-        self.progress_dialog = self.show_progress_dialog(len(self.blob_detector_logic_list), "Counting Blobs...",
+        self.progress_dialog = self.show_progress_dialog(len(self.blob_detector_logic_list) + 1, "Counting Blobs...",
                                                          "Cancel")
         self.progress_dialog.setAutoClose(False)
-        self.progress_dialog.setValue(1)
+        self.progress_dialog.setAutoReset(False)
+        self.progress_dialog.setValue(0)
         QApplication.processEvents()
 
         self.threads = []
@@ -256,6 +257,8 @@ class ImageSetBlobDetector(QWidget):
         while self.progress_dialog.isVisible():
             QApplication.processEvents()
             if self.completed_tasks >= len(self.blob_detector_logic_list):
+                self.update_displayed_blob_counts()
+                self.progress_dialog.setValue(self.progress_dialog.value() + 1)
                 logging.debug("All tasks completed, closing progress dialog.")
                 self.progress_dialog.close()
                 break
@@ -264,16 +267,15 @@ class ImageSetBlobDetector(QWidget):
                 self.progress_dialog.close()
                 break
 
-        self.update_displayed_blob_counts()
-
     def update_displayed_blob_counts(self):
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
                 blob_detector_logic = widget.blob_detector_logic
                 list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
-                widget.update_display_image()
-                self.image_list_widget.item(i).setText(f"{list_name} - Keypoints: {len(blob_detector_logic.keypoints)}")
+                if len(blob_detector_logic.keypoints) > 0:
+                    self.image_list_widget.item(i).setText(f"{list_name} - Keypoints: {len(blob_detector_logic.keypoints)}")
+            QApplication.processEvents()
 
     def add_to_image_list(self, blob_detector_logic):
         list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
@@ -308,7 +310,7 @@ class ImageSetBlobDetector(QWidget):
             self.blob_detector_stack.removeWidget(widget)
             self.blob_detector_stack.insertWidget(index, widget)
             list_name = widget.blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
-            self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(widget.blob_detector_logic.keypoints)}")
+            self.image_list_widget.addItem(f"{list_name}")
 
         # Ensure the correct widget is selected
         self.image_list_widget.setCurrentRow(old_selected_index)

@@ -2,7 +2,7 @@ import cv2
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 from PySide6.QtGui import QImage, QPixmap, QWheelEvent, QKeyEvent, QIcon
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QCheckBox, \
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture
+    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture, QApplication
 
 from ui_utils import UIUtils
 from utils import GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT, MIN_SCALE_FACTOR, MAX_SCALE_FACTOR
@@ -22,10 +22,9 @@ class BlobDetectorUI(QWidget):
         self.initUI()
         if not blob_detector_logic.image_path:
             self.disable_all_widgets()
-
-        # Connect the keypoints_changed signal to the update_keypoint_count_label and update_display_image slots
         self.blob_detector_logic.keypoints_changed.connect(self.update_keypoint_count_label)
         self.blob_detector_logic.keypoints_changed.connect(self.update_display_image)
+        self.blob_detector_logic.keypoints_changed.connect(self.keypoints_changed)
 
     def initUI(self):
         self.setWindowTitle("Blob Detector")
