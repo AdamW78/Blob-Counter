@@ -72,17 +72,15 @@ class BlobDetectorLogic(QObject):
         return params
 
     def detect_blobs(self):
-        logging.debug(f"Detecting blobs for Day {self.timepoint.day}  Sample #{self.timepoint.sample_number} in dilution {self.timepoint.dilution}...")
-        logging.debug(f"Min Area: {self.params.minArea}, Max Area: {self.params.maxArea}, Min Circularity: {self.params.minCircularity}, Min Convexity: {self.params.minConvexity}, Min Inertia Ratio: {self.params.minInertiaRatio}, Min Distance Between Blobs: {self.params.minDistBetweenBlobs}")
-        logging.debug(f"Applying Gaussian Blur: {True}, Applying Morphological Operations: {True}")
-        logging.debug(self.detector)
+        # logging.debug(self.detector)
         self.keypoints = list(self.detector.detect(self.gray_image))
-        logging.debug(f"Detected {len(self.keypoints)} keypoints.")
         self.update_timepoint()
+        self.keypoints_changed.emit(len(self.keypoints))  # Ensure this signal is emitted
 
     def update_blob_count(self, min_area, max_area, min_circularity, min_convexity, min_inertia_ratio,
                           min_dist_between_blobs, apply_gaussian_blur, apply_morphological_operations,
                           min_threshold=DEFAULT_MIN_THRESHOLD, max_threshold=DEFAULT_MAX_THRESHOLD):
+        #logging.debug("Starting update_blob_count for Sample #%s", self.timepoint.sample_number)
         self.params.minArea = min_area
         self.params.maxArea = max_area
         self.params.minCircularity = min_circularity
@@ -93,23 +91,31 @@ class BlobDetectorLogic(QObject):
         self.params.maxThreshold = max_threshold
         self.detector = cv2.SimpleBlobDetector_create(self.params)
 
-        logging.debug(f"Updated Blob Detector Params: minArea={min_area}, maxArea={max_area}, "
-                      f"minCircularity={min_circularity}, minConvexity={min_convexity}, "
-                      f"minInertiaRatio={min_inertia_ratio}, minDistBetweenBlobs={min_dist_between_blobs}, "
-                      f"minThreshold={min_threshold}, maxThreshold={max_threshold}")
+        #logging.debug(f"Updated Blob Detector Params: minArea={min_area}, maxArea={max_area}, "
+                      #f"minCircularity={min_circularity}, minConvexity={min_convexity}, "
+                      #f"minInertiaRatio={min_inertia_ratio}, minDistBetweenBlobs={min_dist_between_blobs}, "
+                      #f"minThreshold={min_threshold}, maxThreshold={max_threshold}")
 
         self.convert_to_grayscale()
+        #logging.debug(f"Converted image corresponding to sample #{self.timepoint.sample_number} to grayscale")
+
         if apply_gaussian_blur:
             self.gray_image = cv2.GaussianBlur(self.gray_image, (5, 5), 0)
-            logging.debug("Applied Gaussian Blur")
+            #logging.debug(f"Applied Gaussian Blur to image corresponding to Sample #{self.timepoint.sample_number}")
+
         if apply_morphological_operations:
             kernel = np.ones((5, 5), np.uint8)
             self.gray_image = cv2.erode(self.gray_image, kernel, iterations=1)
             self.gray_image = cv2.dilate(self.gray_image, kernel, iterations=1)
-            logging.debug("Applied Morphological Operations")
+            #logging.debug(f"Applied Morphological Operations to image corresponding to Sample #{self.timepoint.sample_number}")
 
         self.detect_blobs()
+        #logging.debug(f"Blob detection completed for Sample #{self.timepoint.sample_number}")
+
         self.update_timepoint()
+        #logging.debug(f"Timepoint updated for Sample #{self.timepoint.sample_number}")
+        #logging.debug(f"Emitted keypoints_changed signal for Sample #{self.timepoint.sample_number}")
+        #logging.debug(f"Completed update_blob_count for Sample #{self.timepoint.sample_number} - found {len(self.keypoints)} keypoints.")
         self.keypoints_changed.emit(len(self.keypoints))
 
     def get_dilution_string(self, dilution_str: str, default_dilution: str):

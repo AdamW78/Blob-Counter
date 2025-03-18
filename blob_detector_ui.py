@@ -1,18 +1,11 @@
-import PySide6.QtGui
 import cv2
-from PySide6 import QtCore
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
-from PySide6.QtGui import QImage, QPixmap, QWheelEvent, QKeyEvent
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton, QCheckBox, \
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture, QGestureRecognizer
+from PySide6.QtGui import QImage, QPixmap, QWheelEvent, QKeyEvent, QIcon
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QCheckBox, \
+    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture
 
-from three_finger_pan_gesture import ThreeFingerPanGestureRecognizer
 from ui_utils import UIUtils
-from utils import GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT, MIN_AREA, MAX_AREA, DEFAULT_MIN_AREA, DEFAULT_MAX_AREA, \
-    DEFAULT_MIN_CONVEXITY, DEFAULT_MIN_CIRCULARITY, DEFAULT_MIN_INERTIA_RATIO, MAX_DISTANCE_BETWEEN_BLOBS, \
-    MIN_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS, MIN_SCALE_FACTOR, MAX_SCALE_FACTOR, \
-    NEW_KEYPOINT_SIZE, TOOLTIP_MIN_AREA, TOOLTIP_MAX_AREA, TOOLTIP_MIN_CIRCULARITY, TOOLTIP_MIN_CONVEXITY, \
-    TOOLTIP_MIN_INERTIA_RATIO, TOOLTIP_MIN_DIST_BETWEEN_BLOBS
+from utils import GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT, MIN_SCALE_FACTOR, MAX_SCALE_FACTOR
 
 
 class BlobDetectorUI(QWidget):
@@ -30,27 +23,35 @@ class BlobDetectorUI(QWidget):
         if not blob_detector_logic.image_path:
             self.disable_all_widgets()
 
+        # Connect the keypoints_changed signal to the update_keypoint_count_label and update_display_image slots
+        self.blob_detector_logic.keypoints_changed.connect(self.update_keypoint_count_label)
+        self.blob_detector_logic.keypoints_changed.connect(self.update_display_image)
 
     def initUI(self):
         self.setWindowTitle("Blob Detector")
         self.layout = QVBoxLayout(self)
+        self.layout.setSpacing(0)  # Set vertical spacing to zero
 
         self.keypoint_count_label = QLabel('Keypoints: 0')
         self.layout.addWidget(self.keypoint_count_label)
 
-        self.min_area_slider, self.min_area_input = UIUtils.create_slider_with_input('Min Area', MIN_AREA, MAX_AREA, DEFAULT_MIN_AREA, TOOLTIP_MIN_AREA)
-        self.max_area_slider, self.max_area_input = UIUtils.create_slider_with_input('Max Area', MIN_AREA, MAX_AREA, DEFAULT_MAX_AREA, TOOLTIP_MAX_AREA)
-        self.min_circularity_slider, self.min_circularity_input = UIUtils.create_slider_with_input('Min Circularity', 0, 100, int(DEFAULT_MIN_CIRCULARITY * 100), TOOLTIP_MIN_CIRCULARITY)
-        self.min_convexity_slider, self.min_convexity_input = UIUtils.create_slider_with_input('Min Convexity', 0, 100, int(DEFAULT_MIN_CONVEXITY * 100), TOOLTIP_MIN_CONVEXITY)
-        self.min_inertia_ratio_slider, self.min_inertia_ratio_input = UIUtils.create_slider_with_input('Min Inertia Ratio', 0, 100, int(DEFAULT_MIN_INERTIA_RATIO * 100), TOOLTIP_MIN_INERTIA_RATIO)
-        self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = UIUtils.create_slider_with_input('Min Dist Between Blobs', MIN_DISTANCE_BETWEEN_BLOBS, MAX_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_DISTANCE_BETWEEN_BLOBS, TOOLTIP_MIN_DIST_BETWEEN_BLOBS)
+        sliders = UIUtils.create_blob_detector_sliders()
+        self.min_area_group_box, self.min_area_slider, self.min_area_input = sliders['min_area']
+        self.max_area_group_box, self.max_area_slider, self.max_area_input = sliders['max_area']
+        self.min_circularity_group_box, self.min_circularity_slider, self.min_circularity_input = sliders[
+            'min_circularity']
+        self.min_convexity_group_box, self.min_convexity_slider, self.min_convexity_input = sliders['min_convexity']
+        self.min_inertia_ratio_group_box, self.min_inertia_ratio_slider, self.min_inertia_ratio_input = sliders[
+            'min_inertia_ratio']
+        self.min_dist_between_blobs_group_box, self.min_dist_between_blobs_slider, self.min_dist_between_blobs_input = \
+        sliders['min_dist_between_blobs']
 
-        self.layout.addLayout(self.min_area_slider)
-        self.layout.addLayout(self.max_area_slider)
-        self.layout.addLayout(self.min_circularity_slider)
-        self.layout.addLayout(self.min_convexity_slider)
-        self.layout.addLayout(self.min_inertia_ratio_slider)
-        self.layout.addLayout(self.min_dist_between_blobs_slider)
+        self.layout.addWidget(self.min_area_group_box)
+        self.layout.addWidget(self.max_area_group_box)
+        self.layout.addWidget(self.min_circularity_group_box)
+        self.layout.addWidget(self.min_convexity_group_box)
+        self.layout.addWidget(self.min_inertia_ratio_group_box)
+        self.layout.addWidget(self.min_dist_between_blobs_group_box)
 
         self.gaussian_blur_checkbox = QCheckBox('Apply Gaussian Blur')
         self.morphological_operations_checkbox = QCheckBox('Apply Morphological Operations')
@@ -58,6 +59,7 @@ class BlobDetectorUI(QWidget):
         self.layout.addWidget(self.morphological_operations_checkbox)
 
         self.recount_button = QPushButton('Recount Blobs')
+        self.recount_button.setIcon(QIcon('icons/recount.svg'))
         self.recount_button.clicked.connect(self.update_blob_count)
         self.layout.addWidget(self.recount_button)
 
@@ -109,9 +111,9 @@ class BlobDetectorUI(QWidget):
     def update_blob_count(self):
         min_area = int(self.min_area_input.text())
         max_area = int(self.max_area_input.text())
-        min_circularity = int(self.min_circularity_input.text()) / 100.0
-        min_convexity = int(self.min_convexity_input.text()) / 100.0
-        min_inertia_ratio = int(self.min_inertia_ratio_input.text()) / 100.0
+        min_circularity = float(self.min_circularity_input.text()) / 100.0
+        min_convexity = float(self.min_convexity_input.text()) / 100.0
+        min_inertia_ratio = float(self.min_inertia_ratio_input.text()) / 100.0
         min_dist_between_blobs = int(self.min_dist_between_blobs_input.text())
         apply_gaussian_blur = self.gaussian_blur_checkbox.isChecked()
         apply_morphological_operations = self.morphological_operations_checkbox.isChecked()
@@ -121,6 +123,7 @@ class BlobDetectorUI(QWidget):
             apply_gaussian_blur, apply_morphological_operations
         )
         self.update_display_image()
+        QApplication.processEvents()  # Process the event loop to update the UI
 
     def update_display_image(self):
         image = self.blob_detector_logic.get_display_image()
@@ -131,10 +134,13 @@ class BlobDetectorUI(QWidget):
         pixmap = QPixmap.fromImage(q_image)
         self.pixmap_item.setPixmap(pixmap)
         self.graphics_scene.setSceneRect(0, 0, width, height)
-        self.keypoint_count_label.setText(f'Keypoints: {self.blob_detector_logic.get_keypoint_count()}')
         if not self.fitted:
             self.fit_in_view()
             self.fitted = True
+
+
+    def update_keypoint_count_label(self, count):
+        self.keypoint_count_label.setText(f'Keypoints: {count}')
 
     def eventFilter(self, source, event):
         if self.blob_detector_logic.image_path is None:
