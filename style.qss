@@ -1,6 +1,6 @@
 QWidget {
     font-family: Arial, sans-serif;
-    font-size: 9px; /* Further reduced font size */
+    font-size: 11px; /* Further reduced font size */
     background-color: #2b2b2b;
     color: #f0f0f0;
 }
