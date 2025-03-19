@@ -57,9 +57,10 @@ class BlobDetectorUI(QWidget):
         self.layout.addWidget(self.gaussian_blur_checkbox)
         self.layout.addWidget(self.morphological_operations_checkbox)
 
-        self.recount_button = QPushButton('Recount Blobs')
+        self.recount_button = QPushButton('Count Blobs')
         self.recount_button.setIcon(QIcon('icons/recount.svg'))
         self.recount_button.clicked.connect(self.update_blob_count)
+        self.recount_button.setStyleSheet("margin-bottom: 10px; margin-top: 10px;")
         self.layout.addWidget(self.recount_button)
 
         self.graphics_view = QGraphicsView(self)

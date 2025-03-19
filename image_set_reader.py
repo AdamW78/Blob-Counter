@@ -273,6 +273,7 @@ class ImageSetBlobDetector(QWidget):
             if isinstance(widget, BlobDetectorUI):
                 blob_detector_logic = widget.blob_detector_logic
                 list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
+                widget.update_display_image()
                 if len(blob_detector_logic.keypoints) > 0:
                     self.image_list_widget.item(i).setText(f"{list_name} - Keypoints: {len(blob_detector_logic.keypoints)}")
             QApplication.processEvents()
@@ -360,7 +361,6 @@ class ImageSetBlobDetector(QWidget):
                 cv2.imwrite(image_path, cv2.cvtColor(image_with_keypoints, cv2.COLOR_RGB2BGR))  # Convert RGB to BGR
                 break
 
-
     def save_all_keypoints_as_xml(self):
         root = ET.Element("Keypoints")
         day_element = None
@@ -382,7 +382,9 @@ class ImageSetBlobDetector(QWidget):
                     ET.SubElement(kp_element, "Y").text = str(keypoint.pt[1])
                     ET.SubElement(kp_element, "Size").text = str(keypoint.size)
 
-        xml_path = os.path.join("counted_images", "keypoints.xml")
+        xml_dir_path = os.path.join("counted_images", f"Day {timepoint.day}")
+        os.makedirs(xml_dir_path, exist_ok=True)  # Ensure the directory exists
+        xml_path = os.path.join(xml_dir_path, "keypoints.xml")
 
         # Pretty print the XML
         xml_str = ET.tostring(root, encoding='utf-8')
