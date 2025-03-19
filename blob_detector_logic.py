@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 
 import cv2
 import numpy as np
@@ -166,15 +167,10 @@ class BlobDetectorLogic(QObject):
             if isinstance(day_source, list):
                 day_string = day_source[0]
             elif isinstance(day_source, str):
-                find_day = day_source.find(r"Day [0-9]{1,3}")
-                if find_day != -1:
-                    day_string_parts = day_source[find_day:].split(' ')
-                    next_string = False
-                    for index, part in enumerate(day_string_parts):
-                        if next_string:
-                            day_string = self.parse_day_number(part)
-                        elif part.find("Day") != -1 and day_string_parts[index + 1][0].isdigit():
-                            next_string = True
+                m = re.search(r'(?<=Day )[0-9]{1,3}', day_source)
+                if m:
+                    day_string = m.group(0)
+                    self.day_num = int(day_string)
             else:
                 logger.LOGGER().warning(
                     "Day source is incorrect type - expected list or string - not including day in timepoint display name...")
@@ -191,6 +187,8 @@ class BlobDetectorLogic(QObject):
 
     def get_custom_name(self, default_dilution=DEFAULT_DILUTION):
         if self.custom_name is None:
+            if self.image_path is None:
+                return ""
             basename = os.path.basename(self.image_path)
             if basename.upper().endswith("LABEL.JPG"):
                 logger.LOGGER().info("Skipping label image...")
@@ -236,12 +234,14 @@ class BlobDetectorLogic(QObject):
             if (x - kp_x) ** 2 + (y - kp_y) ** 2 <= radius ** 2:
                 self.keypoints.remove(keypoint)
                 self.undo_redo_tracker.push((keypoint, ActionType.REMOVE))
+                logging.debug("Removed keypoint at (%s, %s)", x, y)
                 self.update_timepoint()
                 self.keypoints_changed.emit(len(self.keypoints))
                 return
         keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
         self.keypoints.append(keypoint)
         self.undo_redo_tracker.push((keypoint, ActionType.ADD))
+        logging.debug("Added keypoint at (%s, %s)", x, y)
         self.update_timepoint()
         self.keypoints_changed.emit(len(self.keypoints))
 

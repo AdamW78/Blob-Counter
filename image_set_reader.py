@@ -27,6 +27,7 @@ from utils import DEFAULT_DILUTION, IMAGE_LIST_WIDGET_WIDTH
 class ImageSetBlobDetector(QWidget):
     def __init__(self):
         super().__init__()
+        self.currently_updating = False
         self.blob_detector_logic_list= []
         self.image_paths = []
         self.timepoints = []
@@ -218,7 +219,13 @@ class ImageSetBlobDetector(QWidget):
         max_threshold = int(self.max_threshold_input.text())
         apply_gaussian_blur = self.gaussian_blur_checkbox.isChecked()
         apply_morphological_operations = self.morphological_operations_checkbox.isChecked()
-
+        i = len(self.blob_detector_logic_list) - 1
+        while i >= 0:
+            cur_logic = self.blob_detector_logic_list[i]
+            if cur_logic.image_path is None:
+                self.blob_detector_logic_list.pop(i)
+                self.blob_detector_stack.removeWidget(i)
+            i -= 1
         self.progress_dialog = self.show_progress_dialog(len(self.blob_detector_logic_list) + 1, "Counting Blobs...",
                                                          "Cancel")
         self.progress_dialog.setAutoClose(False)
@@ -236,6 +243,8 @@ class ImageSetBlobDetector(QWidget):
             QApplication.processEvents()
 
         for logic in self.blob_detector_logic_list:
+            if logic.image_path is None:
+                continue
             worker = BlobCounterWorker(logic, min_area, max_area, min_circularity, min_convexity, min_inertia_ratio,
                                        min_dist_between_blobs, min_threshold, max_threshold, apply_gaussian_blur,
                                        apply_morphological_operations)
@@ -255,9 +264,9 @@ class ImageSetBlobDetector(QWidget):
         timeout = 60  # Timeout in seconds
 
         while self.progress_dialog.isVisible():
-            QApplication.processEvents()
+            sleep(0.01)
             if self.completed_tasks >= len(self.blob_detector_logic_list):
-                self.update_displayed_blob_counts()
+                self.update_displayed_blob_counts_finished_loading()
                 self.progress_dialog.setValue(self.progress_dialog.value() + 1)
                 logging.debug("All tasks completed, closing progress dialog.")
                 self.progress_dialog.close()
@@ -267,16 +276,30 @@ class ImageSetBlobDetector(QWidget):
                 self.progress_dialog.close()
                 break
 
-    def update_displayed_blob_counts(self):
+    def __update_displayed_blob_counts__(self):
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
-                blob_detector_logic = widget.blob_detector_logic
+                blob_detector_logic = self.blob_detector_logic_list[i]
+                if blob_detector_logic.image_path is None:
+                    continue
                 list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
                 widget.update_display_image()
                 if len(blob_detector_logic.keypoints) > 0:
                     self.image_list_widget.item(i).setText(f"{list_name} - Keypoints: {len(blob_detector_logic.keypoints)}")
             QApplication.processEvents()
+
+    def update_displayed_blob_counts(self):
+        if self.currently_updating:
+            return
+        self.__update_displayed_blob_counts__()
+
+
+    def update_displayed_blob_counts_finished_loading(self):
+        self.currently_updating = True
+        self.__update_displayed_blob_counts__()
+        self.currently_updating = False
+
 
     def add_to_image_list(self, blob_detector_logic):
         list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)

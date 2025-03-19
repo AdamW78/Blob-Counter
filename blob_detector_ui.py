@@ -126,6 +126,8 @@ class BlobDetectorUI(QWidget):
         QApplication.processEvents()  # Process the event loop to update the UI
 
     def update_display_image(self):
+        if self.blob_detector_logic.image_path is None:
+            return
         image = self.blob_detector_logic.get_display_image()
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
         height, width, channel = image.shape
@@ -173,8 +175,12 @@ class BlobDetectorUI(QWidget):
             self.handle_wheel_zoom(event)
             return True
         elif event.type() == QEvent.Type.KeyPress:
-            self.handle_key_zoom(event)
-            return True
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier or event.modifiers() & Qt.KeyboardModifier.MetaModifier:
+                if event.key() == Qt.Key.Key_Equal or event.key() == Qt.Key.Key_Minus:
+                    self.handle_key_zoom(event)
+                    return True
+                elif event.key() == Qt.Key.Key_Z:
+                    return self.blob_detector_logic.handle_undo_redo(event)
         return super().eventFilter(source, event)
 
     def handle_wheel_zoom(self, event: QWheelEvent):
