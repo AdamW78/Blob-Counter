@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QCheckB
 from ui_utils import UIUtils
 from utils import GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT, MIN_SCALE_FACTOR, MAX_SCALE_FACTOR
 
+TOUCHSCREEN_MODE = False
 
 class BlobDetectorUI(QWidget):
     keypoints_changed = Signal(int)
@@ -22,8 +23,8 @@ class BlobDetectorUI(QWidget):
         self.initUI()
         if not blob_detector_logic.image_path:
             self.disable_all_widgets()
-        self.blob_detector_logic.keypoints_changed.connect(self.update_keypoint_count_label)
         self.blob_detector_logic.keypoints_changed.connect(self.update_display_image)
+        self.blob_detector_logic.keypoints_changed.connect(self.update_keypoint_count_label)
         self.blob_detector_logic.keypoints_changed.connect(self.keypoints_changed)
 
     def initUI(self):
@@ -143,6 +144,7 @@ class BlobDetectorUI(QWidget):
 
     def update_keypoint_count_label(self, count):
         self.keypoint_count_label.setText(f'Keypoints: {count}')
+        QApplication.processEvents()
 
     def eventFilter(self, source, event):
         if self.blob_detector_logic.image_path is None:
@@ -152,25 +154,30 @@ class BlobDetectorUI(QWidget):
         elif event.type() == QEvent.Type.MouseButtonPress:
             if event.button() == Qt.MouseButton.LeftButton:
                 self.mouse_press_position = event.position()
-                if self.graphics_view.viewport().rect().contains(self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
+                if self.graphics_view.viewport().rect().contains(
+                        self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())) \
+                        and not self.is_dragging:
                     self.mouse_is_pressed = True
                     self.is_dragging = False
                     return True
         elif event.type() == QEvent.Type.MouseMove:
-            if self.mouse_is_pressed and self.graphics_view.viewport().rect().contains(self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
+            if self.mouse_is_pressed and self.graphics_view.viewport().rect().contains(
+                    self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
                 self.is_dragging = True
                 delta = event.position() - self.mouse_press_position
-                self.graphics_view.horizontalScrollBar().setValue(self.graphics_view.horizontalScrollBar().value() - delta.x())
-                self.graphics_view.verticalScrollBar().setValue(self.graphics_view.verticalScrollBar().value() - delta.y())
-                self.mouse_press_position = event.position()
+                self.graphics_view.horizontalScrollBar().setValue(
+                    self.graphics_view.horizontalScrollBar().value() - delta.x())
+                self.graphics_view.verticalScrollBar().setValue(
+                    self.graphics_view.verticalScrollBar().value() - delta.y())
+                self.mouse_press_position = event.position()  # Update the press position to the current position
                 return True
         elif event.type() == QEvent.Type.MouseButtonRelease:
             if event.button() == Qt.MouseButton.LeftButton:
-                if not self.is_dragging and self.graphics_view.viewport().rect().contains(self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
+                if not self.is_dragging and self.graphics_view.viewport().rect().contains(
+                        self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
                     self.add_or_remove_keypoint(event.position())
-                    self.is_dragging = False
-                    self.mouse_is_pressed = False
-                    return True
+                self.is_dragging = False
+                self.mouse_is_pressed = False
         elif event.type() == QEvent.Type.Wheel:
             self.handle_wheel_zoom(event)
             return True
@@ -246,5 +253,3 @@ class BlobDetectorUI(QWidget):
     def add_or_remove_keypoint(self, position):
         scene_pos = self.graphics_view.mapToScene(position.toPoint())
         self.blob_detector_logic.add_or_remove_keypoint(scene_pos.x(), scene_pos.y())
-        self.keypoints_changed.emit(self.blob_detector_logic.get_keypoint_count())
-        self.update_display_image()

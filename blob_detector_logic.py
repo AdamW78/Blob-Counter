@@ -8,7 +8,7 @@ from PySide6 import QtCore
 from PySide6.QtCore import Signal, QObject
 
 import logger
-from undo_redo_tracker import ActionType, UndoRedoTracker
+from undo_redo_tracker import ActionType, UndoRedoTracker, Action
 from utils import DEFAULT_MIN_AREA, DEFAULT_MIN_CIRCULARITY, DEFAULT_MAX_AREA, DEFAULT_MIN_CONVEXITY, \
     DEFAULT_MIN_INERTIA_RATIO, DEFAULT_BLOB_COLOR, MIN_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_THRESHOLD, \
     DEFAULT_MAX_THRESHOLD, CIRCLE_COLOR, CIRCLE_THICKNESS, DEFAULT_DILUTION, USE_DAY, Timepoint, USE_DILUTION, \
@@ -38,6 +38,8 @@ class BlobDetectorLogic(QObject):
             self.convert_to_grayscale()
             self.custom_name = self.get_custom_name()
             self.update_timepoint()
+        self.new_keypoints = []
+        self.removed_keypoints = []
 
     def load_image(self):
         self.image = cv2.imread(self.image_path, 1)
@@ -224,29 +226,51 @@ class BlobDetectorLogic(QObject):
             cv2.circle(image_with_keypoints, (int(x), int(y)), radius, CIRCLE_COLOR, CIRCLE_THICKNESS)
         return image_with_keypoints
 
+    def update_display_image(self):
+        if self.new_keypoints:
+            for keypoint in self.new_keypoints:
+                x, y = keypoint.pt
+                radius = int(keypoint.size / 2)
+                cv2.circle(self.image, (int(x), int(y)), radius, CIRCLE_COLOR, CIRCLE_THICKNESS)
+            self.new_keypoints = []
+
     def get_keypoint_count(self):
         return len(self.keypoints)
+
+    def add_keypoint(self, x, y):
+        keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
+        self.keypoints.append(keypoint)
+        self.emit_keypoints_changed()
+        self.undo_redo_tracker.perform_action(Action(ActionType.ADD, keypoint))
+        logging.debug("Added new keypoint")
+
+    def remove_keypoint(self, keypoint):
+        if keypoint and hasattr(keypoint, 'pt') and len(keypoint.pt) == 2:
+            self.keypoints.remove(keypoint)
+            self.emit_keypoints_changed()
+            self.undo_redo_tracker.perform_action(Action(ActionType.REMOVE, keypoint))
+            logging.debug("Removed keypoint")
+        else:
+            logging.error("Invalid keypoint: %s", keypoint)
+
+    def emit_keypoints_changed(self):
+        self.update_timepoint()
+        logging.debug("BLOB_DETECTOR_LOGIC - EMIT - Keypoints changed - START...")
+        self.keypoints_changed.emit(len(self.keypoints))
+        logging.debug("BLOB_DETECTOR_LOGIC - EMIT - Keypoints changed - COMPLETE!")
 
     def add_or_remove_keypoint(self, x, y):
         for keypoint in self.keypoints:
             kp_x, kp_y = keypoint.pt
             radius = keypoint.size / 2
             if (x - kp_x) ** 2 + (y - kp_y) ** 2 <= radius ** 2:
-                self.keypoints.remove(keypoint)
-                self.undo_redo_tracker.push((keypoint, ActionType.REMOVE))
-                logging.debug("Removed keypoint at (%s, %s)", x, y)
-                self.update_timepoint()
-                self.keypoints_changed.emit(len(self.keypoints))
+                self.remove_keypoint(keypoint)
                 return
-        keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
-        self.keypoints.append(keypoint)
-        self.undo_redo_tracker.push((keypoint, ActionType.ADD))
-        logging.debug("Added keypoint at (%s, %s)", x, y)
-        self.update_timepoint()
-        self.keypoints_changed.emit(len(self.keypoints))
+        self.add_keypoint(x, y)
 
     def handle_undo_redo(self, event):
         undo = False
+        action = None
         if event.modifiers() & QtCore.Qt.ShiftModifier:
             action = self.undo_redo_tracker.redo()
             undo = False
@@ -254,7 +278,7 @@ class BlobDetectorLogic(QObject):
             action = self.undo_redo_tracker.undo()
             undo = True
         if action is not None:
-            keypoint, action_type = action
+            action_type, keypoint = action
             if undo:
                 if action_type == ActionType.ADD:
                     self.keypoints.remove(keypoint)
@@ -268,5 +292,4 @@ class BlobDetectorLogic(QObject):
             self.update_timepoint()
             return True
         else:
-            logger.LOGGER().info("No more actions to undo/redo.")
             return False

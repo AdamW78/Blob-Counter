@@ -2,6 +2,7 @@ import logging
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 import sys
+sys.setrecursionlimit(1500)  # Example of setting a higher recursion limit
 from image_set_reader import ImageSetBlobDetector
 from blob_detector_ui import BlobDetectorUI
 from blob_detector_logic import BlobDetectorLogic

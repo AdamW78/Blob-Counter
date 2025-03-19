@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 import cv2
 from PySide6.QtCore import Qt, QEvent, QThread
 from PySide6.QtWidgets import QListWidget, QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, \
-    QApplication, QGroupBox, QStackedWidget, QCheckBox, QProgressDialog, QMessageBox
+    QApplication, QGroupBox, QStackedWidget, QCheckBox, QProgressDialog, QMessageBox, QGestureEvent
 
 import logger
 from blob_detector_logic import BlobDetectorLogic
@@ -58,8 +58,10 @@ class ImageSetBlobDetector(QWidget):
 
     # noinspection PyTypeChecker
     def eventFilter(self, source, event):
-        if event.type() == QEvent.Type.Gesture:
-            return self.handle_gesture_event(event)
+        if event.type() == QEvent.Type.MouseMove or event.type() == QEvent.Type.MouseButtonPress or event.type() == QEvent.Type.MouseButtonRelease:
+            current_widget = self.blob_detector_stack.currentWidget()
+            if isinstance(current_widget, BlobDetectorUI):
+                return current_widget.eventFilter(source, event)
         elif event.type() == QEvent.Type.Wheel:
             event = event if isinstance(event, QWheelEvent) else None
             current_widget = self.blob_detector_stack.currentWidget()
@@ -72,19 +74,6 @@ class ImageSetBlobDetector(QWidget):
                 current_widget.handle_key_zoom(event)
                 return True
         return super().eventFilter(source, event)
-
-    def handle_gesture_event(self, event):
-        gesture = event.gesture(Qt.PanGesture)
-        if gesture:
-            delta = gesture.delta()
-            self.blob_detector_stack.horizontalScrollBar().setValue(
-                self.blob_detector_stack.horizontalScrollBar().value() - delta.x()
-            )
-            self.blob_detector_stack.verticalScrollBar().setValue(
-                self.blob_detector_stack.verticalScrollBar().value() - delta.y()
-            )
-            return True
-        return False
 
     def create_universal_blob_detector_settings(self):
         self.controls_group_box = QGroupBox("Blob Detection Parameters - All Images")
@@ -280,6 +269,8 @@ class ImageSetBlobDetector(QWidget):
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
+                if i >= len(self.blob_detector_logic_list):
+                    continue
                 blob_detector_logic = self.blob_detector_logic_list[i]
                 if blob_detector_logic.image_path is None:
                     continue
@@ -287,7 +278,6 @@ class ImageSetBlobDetector(QWidget):
                 widget.update_display_image()
                 if len(blob_detector_logic.keypoints) > 0:
                     self.image_list_widget.item(i).setText(f"{list_name} - Keypoints: {len(blob_detector_logic.keypoints)}")
-            QApplication.processEvents()
 
     def update_displayed_blob_counts(self):
         if self.currently_updating:
@@ -298,6 +288,7 @@ class ImageSetBlobDetector(QWidget):
     def update_displayed_blob_counts_finished_loading(self):
         self.currently_updating = True
         self.__update_displayed_blob_counts__()
+        QApplication.processEvents()
         self.currently_updating = False
 
 
