@@ -358,7 +358,7 @@ class ImageSetBlobDetector(QWidget):
                 day_folder = os.path.join("counted_images", f"Day {timepoint.day}")
                 os.makedirs(day_folder, exist_ok=True)
                 image_path = os.path.join(day_folder, f"Sample_{timepoint.sample_number}.png")
-                cv2.imwrite(image_path, cv2.cvtColor(image_with_keypoints, cv2.COLOR_RGB2BGR))  # Convert RGB to BGR
+                cv2.imwrite(image_path, image_with_keypoints)  # Save without converting to BGR
                 break
 
     def save_all_keypoints_as_xml(self):
