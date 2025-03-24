@@ -1,6 +1,6 @@
 import cv2
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
-from PySide6.QtGui import QImage, QPixmap, QWheelEvent, QKeyEvent, QIcon
+from PySide6.QtGui import QImage, QPixmap, QWheelEvent, QKeyEvent, QIcon, QMouseEvent
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QCheckBox, \
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture, QApplication
 
@@ -12,17 +12,24 @@ TOUCHSCREEN_MODE = False
 class BlobDetectorUI(QWidget):
     keypoints_changed = Signal(int)
 
-    def __init__(self, blob_detector_logic):
+    def __init__(self, image_path: str=None, image_set_reader=None):
         super().__init__()
         self.fitted = False
-        self.blob_detector_logic = blob_detector_logic
+        from blob_detector_logic import BlobDetectorLogic
+        if image_set_reader:
+            self.blob_detector_logic = BlobDetectorLogic(self, image_path=image_path, image_set_reader=image_set_reader)
+            self.image_set_reader = image_set_reader
+        else:
+            self.blob_detector_logic = BlobDetectorLogic(self, image_path=image_path)
+            self.image_set_reader = None
         self.current_scale_factor = 1.0
         self.is_dragging = False
         self.mouse_is_pressed = False
         self.mouse_press_position = QPointF()
         self.initUI()
-        if not blob_detector_logic.image_path:
+        if not image_path:
             self.disable_all_widgets()
+            self.blob_detector_logic.image_set_reader = image_set_reader
         self.blob_detector_logic.keypoints_changed.connect(self.update_display_image)
         self.blob_detector_logic.keypoints_changed.connect(self.update_keypoint_count_label)
         self.blob_detector_logic.keypoints_changed.connect(self.keypoints_changed)
@@ -59,7 +66,7 @@ class BlobDetectorUI(QWidget):
         self.layout.addWidget(self.morphological_operations_checkbox)
 
         self.recount_button = QPushButton('Count Blobs')
-        self.recount_button.setIcon(QIcon('icons/recount.svg'))
+        # self.recount_button.setIcon(QIcon('icons/recount.svg'))
         self.recount_button.clicked.connect(self.update_blob_count)
         self.recount_button.setStyleSheet("margin-bottom: 10px; margin-top: 10px;")
         self.layout.addWidget(self.recount_button)
@@ -141,7 +148,6 @@ class BlobDetectorUI(QWidget):
             self.fit_in_view()
             self.fitted = True
 
-
     def update_keypoint_count_label(self, count):
         self.keypoint_count_label.setText(f'Keypoints: {count}')
         QApplication.processEvents()
@@ -149,48 +155,29 @@ class BlobDetectorUI(QWidget):
     def eventFilter(self, source, event):
         if self.blob_detector_logic.image_path is None:
             return super().eventFilter(source, event)
-        if event.type() == QEvent.Gesture:
+        if event.type() == QEvent.Type.Gesture:
+            event = event if TOUCHSCREEN_MODE and isinstance(event, QGestureEvent) else None
+            if event is None:
+                return False
             return self.handle_gesture_event(event)
-        elif event.type() == QEvent.Type.MouseButtonPress:
-            if event.button() == Qt.MouseButton.LeftButton:
-                self.mouse_press_position = event.position()
-                if self.graphics_view.viewport().rect().contains(
-                        self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())) \
-                        and not self.is_dragging:
-                    self.mouse_is_pressed = True
-                    self.is_dragging = False
-                    return True
-        elif event.type() == QEvent.Type.MouseMove:
-            if self.mouse_is_pressed and self.graphics_view.viewport().rect().contains(
-                    self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
-                self.is_dragging = True
-                delta = event.position() - self.mouse_press_position
-                self.graphics_view.horizontalScrollBar().setValue(
-                    self.graphics_view.horizontalScrollBar().value() - delta.x())
-                self.graphics_view.verticalScrollBar().setValue(
-                    self.graphics_view.verticalScrollBar().value() - delta.y())
-                self.mouse_press_position = event.position()  # Update the press position to the current position
-                return True
-        elif event.type() == QEvent.Type.MouseButtonRelease:
-            if event.button() == Qt.MouseButton.LeftButton:
-                if not self.is_dragging and self.graphics_view.viewport().rect().contains(
-                        self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
-                    self.add_or_remove_keypoint(event.position())
-                self.is_dragging = False
-                self.mouse_is_pressed = False
-        elif event.type() == QEvent.Type.Wheel:
+        if event.type() == QEvent.Type.MouseButtonPress or event.type() == QEvent.Type.MouseMove or event.type() == QEvent.Type.MouseButtonRelease:
+            event = event if isinstance(event, QMouseEvent) else None
+            return self.handle_mouse_event(event)
+        if event.type() == QEvent.Type.Wheel:
+            event = event if isinstance(event, QWheelEvent) else None
             self.handle_wheel_zoom(event)
             return True
-        elif event.type() == QEvent.Type.KeyPress:
+        if event.type() == QEvent.Type.KeyPress:
+            event = event if isinstance(event, QKeyEvent) else None
             if event.modifiers() & Qt.KeyboardModifier.ControlModifier or event.modifiers() & Qt.KeyboardModifier.MetaModifier:
                 if event.key() == Qt.Key.Key_Equal or event.key() == Qt.Key.Key_Minus:
                     self.handle_key_zoom(event)
                     return True
-                elif event.key() == Qt.Key.Key_Z:
+                if event.key() == Qt.Key.Key_Z:
                     return self.blob_detector_logic.handle_undo_redo(event)
         return super().eventFilter(source, event)
 
-    def handle_wheel_zoom(self, event: QWheelEvent):
+    def handle_wheel_zoom(self, event: QWheelEvent) -> bool:
         zoom_in_factor = 1.1
         zoom_out_factor = 1 / zoom_in_factor
 
@@ -203,8 +190,9 @@ class BlobDetectorUI(QWidget):
         if MIN_SCALE_FACTOR <= new_scale_factor <= MAX_SCALE_FACTOR:
             self.graphics_view.scale(zoom_factor, zoom_factor)
             self.current_scale_factor = new_scale_factor
+        return True
 
-    def handle_key_zoom(self, event: QKeyEvent):
+    def handle_key_zoom(self, event: QKeyEvent) -> bool:
         zoom_in_factor = 1.1
         zoom_out_factor = 1 / zoom_in_factor
 
@@ -221,7 +209,7 @@ class BlobDetectorUI(QWidget):
                 self.graphics_view.scale(zoom_factor, zoom_factor)
                 self.current_scale_factor = new_scale_factor
 
-    def handle_pinch_gesture(self, gesture: QGesture):
+    def handle_pinch_gesture(self, gesture: QGesture) -> bool:
         if gesture is None or gesture.gestureType() is not Qt.GestureType.PinchGesture:
             return False
         pinch_gesture = gesture
@@ -232,7 +220,7 @@ class BlobDetectorUI(QWidget):
             self.current_scale_factor = new_scale_factor
         return True
 
-    def handle_swipe_gesture(self, gesture: QGesture):
+    def handle_swipe_gesture(self, gesture: QGesture) -> bool:
         if gesture is None or gesture.gestureType() is not Qt.GestureType.SwipeGesture:
             return False
         swipe_gesture = gesture
@@ -241,7 +229,7 @@ class BlobDetectorUI(QWidget):
         self.graphics_view.verticalScrollBar().setValue(self.graphics_view.verticalScrollBar().value() - delta.y())
         return True
 
-    def handle_gesture_event(self, event: QGestureEvent):
+    def handle_gesture_event(self, event: QGestureEvent) -> bool:
         for gesture in event.gestures():
             if gesture.gestureType() is Qt.GestureType.PinchGesture:
                 return self.handle_pinch_gesture(gesture)
@@ -249,6 +237,40 @@ class BlobDetectorUI(QWidget):
                 return self.handle_swipe_gesture(gesture)
             else:
                 return False
+
+    def handle_mouse_event(self, event: QMouseEvent) -> bool:
+        if event.type() == QEvent.Type.MouseButtonPress:
+            event = event if isinstance(event, QMouseEvent) else None
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.mouse_press_position = event.position()
+                if self.graphics_view.viewport().rect().contains(
+                        self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())) \
+                        and not self.is_dragging:
+                    self.mouse_is_pressed = True
+                    self.is_dragging = False
+                    return True
+        elif event.type() == QEvent.Type.MouseMove:
+            event = event if isinstance(event, QMouseEvent) else None
+            if self.mouse_is_pressed and self.graphics_view.viewport().rect().contains(
+                    self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
+                self.is_dragging = True
+                delta = event.position() - self.mouse_press_position
+                self.graphics_view.horizontalScrollBar().setValue(
+                    self.graphics_view.horizontalScrollBar().value() - delta.x())
+                self.graphics_view.verticalScrollBar().setValue(
+                    self.graphics_view.verticalScrollBar().value() - delta.y())
+                self.mouse_press_position = event.position()  # Update the press position to the current position
+                return True
+        elif event.type() == QEvent.Type.MouseButtonRelease:
+            event = event if isinstance(event, QMouseEvent) else None
+            if event.button() == Qt.MouseButton.LeftButton:
+                if not self.is_dragging and self.graphics_view.viewport().rect().contains(
+                        self.graphics_view.mapFromGlobal(event.globalPosition().toPoint())):
+                    self.add_or_remove_keypoint(event.position())
+                self.is_dragging = False
+                self.mouse_is_pressed = False
+                return True
+        return False
 
     def add_or_remove_keypoint(self, position):
         scene_pos = self.graphics_view.mapToScene(position.toPoint())

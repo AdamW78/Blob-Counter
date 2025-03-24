@@ -28,7 +28,6 @@ class ImageSetBlobDetector(QWidget):
     def __init__(self):
         super().__init__()
         self.currently_updating = False
-        self.blob_detector_logic_list= []
         self.image_paths = []
         self.timepoints = []
         self.initUI()
@@ -49,9 +48,8 @@ class ImageSetBlobDetector(QWidget):
         self.create_universal_blob_detector_settings()
 
         # Add a blank BlobDetectorUI widget initially
-        blank_blob_detector_logic = BlobDetectorLogic()
-        blank_blob_detector_ui = BlobDetectorUI(blank_blob_detector_logic)
-        self.blob_detector_stack.addWidget(blank_blob_detector_ui)
+        blank_blob_detector = BlobDetectorUI(image_path=None, image_set_reader=self)
+        self.blob_detector_stack.addWidget(blank_blob_detector)
 
         # Install event filters for zooming
         self.installEventFilter(self)
@@ -61,7 +59,7 @@ class ImageSetBlobDetector(QWidget):
         if event.type() == QEvent.Type.MouseMove or event.type() == QEvent.Type.MouseButtonPress or event.type() == QEvent.Type.MouseButtonRelease:
             current_widget = self.blob_detector_stack.currentWidget()
             if isinstance(current_widget, BlobDetectorUI):
-                return current_widget.eventFilter(source, event)
+                return current_widget.handle_mouse_event(event)
         elif event.type() == QEvent.Type.Wheel:
             event = event if isinstance(event, QWheelEvent) else None
             current_widget = self.blob_detector_stack.currentWidget()
@@ -108,17 +106,17 @@ class ImageSetBlobDetector(QWidget):
         self.controls_layout.addWidget(self.morphological_operations_checkbox)
 
         self.update_all_button = QPushButton('Update Blob Count for All Images')
-        self.update_all_button.setIcon(QIcon('icons/update.svg'))
+        # self.update_all_button.setIcon(QIcon('icons/update.svg'))
         self.update_all_button.clicked.connect(self.count_all_blobs)
         self.controls_layout.addWidget(self.update_all_button)
 
         self.open_folder_button = QPushButton('Open Image Set Folder...')
-        self.open_folder_button.setIcon(QIcon('icons/open.svg'))
+        # self.open_folder_button.setIcon(QIcon('icons/open.svg'))
         self.open_folder_button.clicked.connect(self.open_folder)
         self.controls_layout.addWidget(self.open_folder_button)
 
         self.export_button = QPushButton('Export Blob Counts')
-        self.export_button.setIcon(QIcon('icons/export.svg'))
+        # self.export_button.setIcon(QIcon('icons/export.svg'))
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self.export_blob_counts)
         self.controls_layout.addWidget(self.export_button)
@@ -159,18 +157,15 @@ class ImageSetBlobDetector(QWidget):
         QApplication.processEvents()
 
         for i, image_path in enumerate(self.image_paths):
-            blob_detector_ui = BlobDetectorUI(BlobDetectorLogic(image_path))
-            blob_detector_logic = blob_detector_ui.blob_detector_logic
-            blob_detector_ui.keypoints_changed.connect(self.update_displayed_blob_counts)
+            blob_detector_ui = BlobDetectorUI(image_path, image_set_reader=self)
             self.blob_detector_stack.addWidget(blob_detector_ui)
-            self.add_to_image_list(blob_detector_logic)
-            self.blob_detector_logic_list.append(blob_detector_logic)
+            self.blob_detector_stack.setCurrentIndex(i)
+            self.add_to_image_list(blob_detector_ui.blob_detector_logic)
 
             progress_dialog.setValue(i + 1)
             QApplication.processEvents()
 
         progress_dialog.close()
-        self.blob_detector_logic_list.sort(key=lambda x: x.get_timepoint().sample_number if x.get_timepoint() else -1)
 
         # Automatically select the top image
         if self.image_list_widget.count() > 0:
@@ -208,14 +203,15 @@ class ImageSetBlobDetector(QWidget):
         max_threshold = int(self.max_threshold_input.text())
         apply_gaussian_blur = self.gaussian_blur_checkbox.isChecked()
         apply_morphological_operations = self.morphological_operations_checkbox.isChecked()
-        i = len(self.blob_detector_logic_list) - 1
+        i = self.blob_detector_stack.count() - 1
         while i >= 0:
-            cur_logic = self.blob_detector_logic_list[i]
+            cur_logic = self.blob_detector_stack.widget(i).blob_detector_logic
             if cur_logic.image_path is None:
-                self.blob_detector_logic_list.pop(i)
-                self.blob_detector_stack.removeWidget(i)
+                self.blob_detector_stack.removeWidget(cur_logic)
+                self.image_list_widget.takeItem(i)
+                logging.debug("Image list widget removed at index: %s", i)
             i -= 1
-        self.progress_dialog = self.show_progress_dialog(len(self.blob_detector_logic_list) + 1, "Counting Blobs...",
+        self.progress_dialog = self.show_progress_dialog(self.blob_detector_stack.count() + 1, "Counting Blobs...",
                                                          "Cancel")
         self.progress_dialog.setAutoClose(False)
         self.progress_dialog.setAutoReset(False)
@@ -231,7 +227,10 @@ class ImageSetBlobDetector(QWidget):
             self.progress_dialog.setValue(self.completed_tasks)
             QApplication.processEvents()
 
-        for logic in self.blob_detector_logic_list:
+        for i in range(self.blob_detector_stack.count()):
+            ui = self.blob_detector_stack.widget(i)
+            ui = ui if isinstance(ui, BlobDetectorUI) else None
+            logic = ui.blob_detector_logic
             if logic.image_path is None:
                 continue
             worker = BlobCounterWorker(logic, min_area, max_area, min_circularity, min_convexity, min_inertia_ratio,
@@ -254,7 +253,7 @@ class ImageSetBlobDetector(QWidget):
 
         while self.progress_dialog.isVisible():
             sleep(0.01)
-            if self.completed_tasks >= len(self.blob_detector_logic_list):
+            if self.completed_tasks >= self.blob_detector_stack.count():
                 self.update_displayed_blob_counts_finished_loading()
                 self.progress_dialog.setValue(self.progress_dialog.value() + 1)
                 logging.debug("All tasks completed, closing progress dialog.")
@@ -269,9 +268,9 @@ class ImageSetBlobDetector(QWidget):
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
-                if i >= len(self.blob_detector_logic_list):
+                if i >= self.blob_detector_stack.count():
                     continue
-                blob_detector_logic = self.blob_detector_logic_list[i]
+                blob_detector_logic = self.blob_detector_stack.widget(i).blob_detector_logic
                 if blob_detector_logic.image_path is None:
                     continue
                 list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
@@ -279,11 +278,17 @@ class ImageSetBlobDetector(QWidget):
                 if len(blob_detector_logic.keypoints) > 0:
                     self.image_list_widget.item(i).setText(f"{list_name} - Keypoints: {len(blob_detector_logic.keypoints)}")
 
-    def update_displayed_blob_counts(self):
+    def update_all_displayed_blob_counts(self):
         if self.currently_updating:
             return
         self.__update_displayed_blob_counts__()
 
+    def update_displayed_blob_count(self, keypoints_length):
+        index = self.blob_detector_stack.indexOf(self.blob_detector_stack.currentWidget())
+        if index == -1:
+            return
+        list_name = self.blob_detector_stack.widget(index).blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
+        self.image_list_widget.item(index).setText(f"{list_name} - Keypoints: {keypoints_length}")
 
     def update_displayed_blob_counts_finished_loading(self):
         self.currently_updating = True

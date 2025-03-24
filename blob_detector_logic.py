@@ -5,9 +5,10 @@ import re
 import cv2
 import numpy as np
 from PySide6 import QtCore
-from PySide6.QtCore import Signal, QObject
+from PySide6.QtCore import QObject
 
 import logger
+from blob_detector_ui import BlobDetectorUI
 from undo_redo_tracker import ActionType, UndoRedoTracker, Action
 from utils import DEFAULT_MIN_AREA, DEFAULT_MIN_CIRCULARITY, DEFAULT_MAX_AREA, DEFAULT_MIN_CONVEXITY, \
     DEFAULT_MIN_INERTIA_RATIO, DEFAULT_BLOB_COLOR, MIN_DISTANCE_BETWEEN_BLOBS, DEFAULT_MIN_THRESHOLD, \
@@ -16,10 +17,13 @@ from utils import DEFAULT_MIN_AREA, DEFAULT_MIN_CIRCULARITY, DEFAULT_MAX_AREA, D
 
 
 class BlobDetectorLogic(QObject):
-    keypoints_changed = Signal(int)
 
-    def __init__(self, image_path=None):
+    keypoints_changed = QtCore.Signal(int)
+
+    def __init__(self, blob_detector_ui: BlobDetectorUI, image_path: str=None, image_set_reader=None):
         super().__init__()
+        self.image_set_reader = image_set_reader # Not touchable from multi-thread-called functions
+        self.blob_detector_ui = blob_detector_ui # Not touchable from multi-thread-called functions
         self.undo_redo_tracker = UndoRedoTracker()
         self.timepoint = None
         self.image_path = image_path
@@ -240,24 +244,21 @@ class BlobDetectorLogic(QObject):
     def add_keypoint(self, x, y):
         keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
         self.keypoints.append(keypoint)
-        self.emit_keypoints_changed()
         self.undo_redo_tracker.perform_action(Action(ActionType.ADD, keypoint))
         logging.debug("Added new keypoint")
 
     def remove_keypoint(self, keypoint):
         if keypoint and hasattr(keypoint, 'pt') and len(keypoint.pt) == 2:
             self.keypoints.remove(keypoint)
-            self.emit_keypoints_changed()
             self.undo_redo_tracker.perform_action(Action(ActionType.REMOVE, keypoint))
-            logging.debug("Removed keypoint")
         else:
             logging.error("Invalid keypoint: %s", keypoint)
 
-    def emit_keypoints_changed(self):
-        self.update_timepoint()
-        logging.debug("BLOB_DETECTOR_LOGIC - EMIT - Keypoints changed - START...")
-        self.keypoints_changed.emit(len(self.keypoints))
-        logging.debug("BLOB_DETECTOR_LOGIC - EMIT - Keypoints changed - COMPLETE!")
+    def update_displayed_keypoints(self, keypoints):
+        self.blob_detector_ui.update_keypoint_count_label(len(self.keypoints))
+        self.blob_detector_ui.update_display_image()
+        if self.image_set_reader:
+            self.image_set_reader.update_displayed_blob_count(len(self.keypoints))
 
     def add_or_remove_keypoint(self, x, y):
         for keypoint in self.keypoints:
@@ -265,8 +266,12 @@ class BlobDetectorLogic(QObject):
             radius = keypoint.size / 2
             if (x - kp_x) ** 2 + (y - kp_y) ** 2 <= radius ** 2:
                 self.remove_keypoint(keypoint)
+                self.update_timepoint()
+                self.update_displayed_keypoints(self.keypoints)
                 return
         self.add_keypoint(x, y)
+        self.update_timepoint()
+        self.update_displayed_keypoints(self.keypoints)
 
     def handle_undo_redo(self, event):
         undo = False
