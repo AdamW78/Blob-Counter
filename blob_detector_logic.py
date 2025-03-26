@@ -51,10 +51,10 @@ class BlobDetectorLogic(QObject):
             raise FileNotFoundError(f"Image not found at path: {self.image_path}")
 
     def update_timepoint(self):
-        if self.day_num != -1 and self.sample_number != -1 and self.dilution is not None:
-            self.timepoint = Timepoint(day=self.day_num, sample_number=self.sample_number, dilution=self.dilution,
-                                       num_keypoints=len(self.keypoints))
-    def get_timepoint(self):
+        self.timepoint = Timepoint(day=self.day_num, sample_number=self.sample_number, dilution=self.dilution,
+                                   num_keypoints=len(self.keypoints), filename=self.image_path)
+    def get_timepoint(self) -> Timepoint:
+        # self.update_timepoint() # This is not necessary
         return self.timepoint
 
     def convert_to_grayscale(self):
@@ -142,6 +142,8 @@ class BlobDetectorLogic(QObject):
         if USE_DILUTION:
             dilution_string = self.get_dilution_string(dilution_str, default_dilution)
             if isinstance(dilution_string, tuple):
+                # failed to find dilution
+                logging.warning(f"{dilution_str} is not a valid dilution string")
                 return f" - {dilution_string[1]}"
             else:
                 return f" - {dilution_string}"
@@ -216,6 +218,8 @@ class BlobDetectorLogic(QObject):
                 str_val += self.handle_dilution_string(parts[2], default_dilution)
             else:
                 logger.LOGGER().warning("Unable to parse image name - using file name...")
+                day_string = self.handle_day_src(folder_name)
+                str_val += day_string
                 str_val = os.path.basename(self.image_path)
             self.custom_name = str_val
             return str_val

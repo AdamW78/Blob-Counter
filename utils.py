@@ -59,4 +59,4 @@ TOOLTIP_MIN_DIST_BETWEEN_BLOBS = "Set the minimum distance (in pixels) between b
 TOOLTIP_MIN_THRESHOLD = "Set the minimum threshold value for blob detection. Lower values detect darker blobs."
 TOOLTIP_MAX_THRESHOLD = "Set the maximum threshold value for blob detection. Higher values detect lighter blobs."
 
-Timepoint = namedtuple("Timepoint", ["day", "sample_number", "dilution", "num_keypoints"])
+Timepoint = namedtuple("Timepoint", ["day", "sample_number", "dilution", "num_keypoints", "filename"])

@@ -1,7 +1,7 @@
 import logging
 from time import sleep, time
 
-from PySide6.QtGui import QWheelEvent, QIcon
+from PySide6.QtGui import QWheelEvent
 
 from blob_counter_worker import BlobCounterWorker
 from ui_utils import UIUtils
@@ -15,10 +15,8 @@ import xml.etree.ElementTree as ET
 import cv2
 from PySide6.QtCore import Qt, QEvent, QThread
 from PySide6.QtWidgets import QListWidget, QFileDialog, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, \
-    QApplication, QGroupBox, QStackedWidget, QCheckBox, QProgressDialog, QMessageBox, QGestureEvent
+    QApplication, QGroupBox, QStackedWidget, QCheckBox, QProgressDialog, QMessageBox
 
-import logger
-from blob_detector_logic import BlobDetectorLogic
 from blob_detector_ui import BlobDetectorUI
 from excel_output import ExcelOutput
 from logger import LOGGER
@@ -28,6 +26,7 @@ class ImageSetBlobDetector(QWidget):
     def __init__(self):
         super().__init__()
         self.currently_updating = False
+        self.blob_detector_logic_list= []
         self.image_paths = []
         self.timepoints = []
         self.initUI()
@@ -105,22 +104,28 @@ class ImageSetBlobDetector(QWidget):
         self.controls_layout.addWidget(self.gaussian_blur_checkbox)
         self.controls_layout.addWidget(self.morphological_operations_checkbox)
 
-        self.update_all_button = QPushButton('Update Blob Count for All Images')
-        # self.update_all_button.setIcon(QIcon('icons/update.svg'))
-        self.update_all_button.clicked.connect(self.count_all_blobs)
-        self.controls_layout.addWidget(self.update_all_button)
-
         self.open_folder_button = QPushButton('Open Image Set Folder...')
         # self.open_folder_button.setIcon(QIcon('icons/open.svg'))
         self.open_folder_button.clicked.connect(self.open_folder)
         self.controls_layout.addWidget(self.open_folder_button)
 
-        self.export_button = QPushButton('Export Blob Counts')
-        # self.export_button.setIcon(QIcon('icons/export.svg'))
-        self.export_button.setEnabled(False)
-        self.export_button.clicked.connect(self.export_blob_counts)
-        self.controls_layout.addWidget(self.export_button)
+        self.update_all_button = QPushButton('Update Blob Count for All Images')
+        # self.update_all_button.setIcon(QIcon('icons/update.svg'))
+        self.update_all_button.clicked.connect(self.count_all_blobs)
+        self.controls_layout.addWidget(self.update_all_button)
+        self.update_all_button.setEnabled(False)
 
+        self.export_button = QPushButton('Export Counted Images to XML and PNG')
+        # self.export_button.setIcon(QIcon('icons/export.svg'))
+        self.export_button.clicked.connect(self.export_counted_images)
+        self.export_to_excel_button = QPushButton('Export Blob Counts to Excel')
+        self.export_to_excel_button.clicked.connect(self.export_to_excel)
+
+
+        self.controls_layout.addWidget(self.export_button)
+        self.controls_layout.addWidget(self.export_to_excel_button)
+        self.export_button.setEnabled(False)
+        self.export_to_excel_button.setEnabled(False)
         self.layout.addWidget(self.controls_group_box)
 
     def create_image_list_widget(self):
@@ -129,7 +134,7 @@ class ImageSetBlobDetector(QWidget):
         self.image_list_widget = QListWidget()
         self.image_list_widget.setMinimumWidth(IMAGE_LIST_WIDGET_WIDTH)
         self.image_list_widget.setMaximumWidth(IMAGE_LIST_WIDGET_WIDTH)
-        self.image_list_widget.itemClicked.connect(self.display_selected_image)
+        self.image_list_widget.itemClicked.connect(self.handle_image_list_widget_item_clicked)
         self.image_list_layout.addWidget(self.image_list_widget)
         self.image_list_group_box.setLayout(self.image_list_layout)
         self.layout.addWidget(self.image_list_group_box)
@@ -159,29 +164,25 @@ class ImageSetBlobDetector(QWidget):
         for i, image_path in enumerate(self.image_paths):
             blob_detector_ui = BlobDetectorUI(image_path, image_set_reader=self)
             self.blob_detector_stack.addWidget(blob_detector_ui)
-            self.blob_detector_stack.setCurrentIndex(i)
             self.add_to_image_list(blob_detector_ui.blob_detector_logic)
-
             progress_dialog.setValue(i + 1)
             QApplication.processEvents()
-
         progress_dialog.close()
-
-        # Automatically select the top image
-        if self.image_list_widget.count() > 0:
-            self.image_list_widget.setCurrentRow(0)
-            self.display_selected_image(self.image_list_widget.item(0))
-
         self.update_image_list()
         if self.timepoints:
             self.export_button.setEnabled(True)
+            self.export_to_excel_button.setEnabled(True)
+            self.update_all_button.setEnabled(True)
+        QApplication.processEvents()
 
-    def display_selected_image(self, item):
-        selected_index = self.image_list_widget.row(item)
+    def handle_image_list_widget_item_clicked(self, item):
+        selected_index = self.image_list_widget.row(item) # Get the index of item just clicked on
+        # Set the current index of the StackedWidget to the newly selected index
+        # This displays the proper BlobDetectorUI widget
         self.blob_detector_stack.setCurrentIndex(selected_index)
         current_widget = self.blob_detector_stack.currentWidget()
         if isinstance(current_widget, BlobDetectorUI):
-            current_widget.update_display_image()
+            current_widget.update_display_image() # Update the displayed image for the selected BlobDetectorUI widget
 
     def show_progress_dialog(self, max_value, message, cancel_button_text):
         progress_dialog = QProgressDialog(message, cancel_button_text, 0, max_value, self)
@@ -253,6 +254,7 @@ class ImageSetBlobDetector(QWidget):
 
         while self.progress_dialog.isVisible():
             sleep(0.01)
+            QApplication.processEvents()
             if self.completed_tasks >= self.blob_detector_stack.count():
                 self.update_displayed_blob_counts_finished_loading()
                 self.progress_dialog.setValue(self.progress_dialog.value() + 1)
@@ -299,7 +301,7 @@ class ImageSetBlobDetector(QWidget):
 
     def add_to_image_list(self, blob_detector_logic):
         list_name = blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
-        self.image_list_widget.addItem(f"{list_name} - Keypoints: {len(blob_detector_logic.keypoints)}")
+        self.image_list_widget.addItem(f"{list_name}")
         self.timepoints.append(blob_detector_logic.get_timepoint())
 
     def extract_sample_number(self, item_text):
@@ -312,62 +314,58 @@ class ImageSetBlobDetector(QWidget):
     def update_image_list(self):
         old_selected_index = self.image_list_widget.selectedIndexes()[
             0].row() if self.image_list_widget.selectedIndexes() else 0
-        self.image_list_widget.clear()
         timepoints_with_widgets = []
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
                 widget.blob_detector_logic.update_timepoint()
                 timepoints_with_widgets.append((widget.blob_detector_logic.get_timepoint(), widget))
-
-
-
         # Sort timepoints and widgets by sample number
-        timepoints_with_widgets.sort(key=lambda x: x[0].sample_number if x[0] else -1)
+        timepoints_with_widgets.sort(key=lambda x: x[0].sample_number if x[0] else math.inf)
 
-        # Re-order widgets in the stack
-        for index, (timepoint, widget) in enumerate(timepoints_with_widgets):
+        # Re-order widgets in the StackedWidget and in the Image List Widget and the timepoints list - these shoudld always be ordered the same
+        # Clear the Image List Widget and the list of timepoints first
+        self.image_list_widget.clear()
+        self.timepoints = []
+        for _, (timepoint, widget) in enumerate(timepoints_with_widgets):
+            # Start by removing every single widget - we want to add them all back in the correct order
             self.blob_detector_stack.removeWidget(widget)
-            self.blob_detector_stack.insertWidget(index, widget)
+        # Add the widgets back in the correct order to both the StackedWidget and the Image List Widget
+        for _, (timepoint, widget) in enumerate(timepoints_with_widgets):
+            self.blob_detector_stack.addWidget(widget)
             list_name = widget.blob_detector_logic.get_custom_name(DEFAULT_DILUTION)
             self.image_list_widget.addItem(f"{list_name}")
+            self.timepoints.append(timepoint)
 
         # Ensure the correct widget is selected
         self.image_list_widget.setCurrentRow(old_selected_index)
         self.blob_detector_stack.setCurrentIndex(old_selected_index)
 
-    def export_blob_counts(self):
+    def export_to_excel(self):
         if not self.timepoints:
             return
-
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Blob Counts", "", "Excel Files (*.xlsx)")
-        if not file_path:
-            return
-
-        # Update timepoints with the latest keypoint counts
+        # Update timepoints with the latest keypoint counts, should be redundant
         self.timepoints.clear()
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
             if isinstance(widget, BlobDetectorUI):
                 widget.blob_detector_logic.update_timepoint()
                 self.timepoints.append(widget.blob_detector_logic.get_timepoint())
-
-        self.timepoints.sort(
-            key=lambda x: x.sample_number if x else math.inf)  # Ensure timepoints are sorted by sample number
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Blob Counts", "", "Excel Files (*.xlsx)")
+        if not file_path:
+            return
         excel_output = ExcelOutput(file_path)
         for timepoint in self.timepoints:
             if timepoint is not None:
                 excel_output.write_blob_counts(timepoint.day, timepoint.sample_number, timepoint.num_keypoints)
         excel_output.save()
+        logging.info(f"SUCCESS: Blob counts exported to Excel and saved to disk in file: \"{file_path}\".")
 
+    def export_counted_images(self):
         self.save_all_keypoints_as_xml()
-
         for timepoint in self.timepoints:
             if timepoint is not None:
                 self.save_image_with_keypoints(timepoint)
-        LOGGER().info("Images with counted keypoints saved to disk.")
-
-        logger.LOGGER().info("Blob counts exported to Excel.")
 
     def save_image_with_keypoints(self, timepoint):
         for i in range(self.blob_detector_stack.count()):
@@ -376,9 +374,11 @@ class ImageSetBlobDetector(QWidget):
                 image_with_keypoints = widget.blob_detector_logic.get_display_image()
                 day_folder = os.path.join("counted_images", f"Day {timepoint.day}")
                 os.makedirs(day_folder, exist_ok=True)
-                image_path = os.path.join(day_folder, f"Sample_{timepoint.sample_number}.png")
+                image_path = os.path.join(day_folder, f"{timepoint.filename=}.png") if timepoint.sample_number == -1 \
+                    else os.path.join(day_folder, f"Sample_{timepoint.sample_number}.png")
                 cv2.imwrite(image_path, image_with_keypoints)  # Save without converting to BGR
                 break
+        logging.info(f"SUCCESS: Images with counted keypoints saved to disk in folder: \"{os.path.join(day_folder, 'counted_images')}\".")
 
     def save_all_keypoints_as_xml(self):
         root = ET.Element("Keypoints")
@@ -394,7 +394,10 @@ class ImageSetBlobDetector(QWidget):
                     day_element = ET.SubElement(root, "Day")
                     day_element.set("number", str(timepoint.day))
                 sample_element = ET.SubElement(day_element, "Sample")
-                sample_element.set("number", str(timepoint.sample_number))
+                if timepoint.sample_number == -1:
+                    sample_element.set("filename", timepoint.filename)
+                else:
+                    sample_element.set("number", str(timepoint.sample_number))
                 for keypoint in keypoints:
                     kp_element = ET.SubElement(sample_element, "Keypoint")
                     ET.SubElement(kp_element, "X").text = str(keypoint.pt[0])
@@ -412,4 +415,4 @@ class ImageSetBlobDetector(QWidget):
 
         with open(xml_path, "w") as f:
             f.write(pretty_xml_str)
-        LOGGER().debug("Keypoints exported to XML and saved to disk.")
+        logging.info(f"SUCCESS: Keypoints exported to XML and saved to disk at path: \"{xml_path}\".")

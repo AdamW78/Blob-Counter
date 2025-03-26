@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="aaa75ce4-068a-45d4-835a-52d760366113" name="Changes" comment="Solve infinite recursion bug" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;AdamW78&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/AdamW78/Blob-Counter.git&quot;,
+    &quot;accountId&quot;: &quot;7e2f762c-dda4-4b6a-a2b8-b464ab56fd69&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 7
+}</component>
+  <component name="ProjectId" id="2tfzbOGTQzAP96H1fRLqaPUzQl4" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.Image Reader.executor&quot;: &quot;Run&quot;,
+    &quot;Python.Image Set Reader.executor&quot;: &quot;Run&quot;,
+    &quot;Python.blob_detector_ui.executor&quot;: &quot;Run&quot;,
+    &quot;Python.image_reader.executor&quot;: &quot;Run&quot;,
+    &quot;Python.image_set_reader.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/52awe/OneDrive/Documents/Git/Smith Lab/Blob Counter&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\52awe\OneDrive\Documents\Git\Smith Lab\Blob Counter" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\52awe\OneDrive\Documents\Git\Smith Lab\Blob Counter\images\Arginine CLS with pH\Day 28" />
+      <recent name="C:\Users\52awe\OneDrive\Documents\Git\Smith Lab\Blob Counter\images\Arginine CLS with pH\Day 26" />
+      <recent name="C:\Users\52awe\OneDrive\Documents\Git\Smith Lab\Blob Counter\images\Arginine CLS with pH\Day 24" />
+      <recent name="C:\Users\52awe\OneDrive\Documents\Git\Smith Lab\Blob Counter\images\Arginine CLS with pH" />
+      <recent name="C:\Users\52awe\OneDrive\Documents\Git\Smith Lab\Blob Counter\images" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Python.Image Set Reader">
+    <list>
+      <item itemvalue="Python.Image Reader" />
+      <item itemvalue="Python.Image Set Reader" />
+    </list>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-1632447f56bf-JavaScript-PY-243.26053.29" />
+        <option value="bundled-python-sdk-b1dbf8ef85a6-4df51de95216-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-243.26053.29" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="aaa75ce4-068a-45d4-835a-52d760366113" name="Changes" comment="" />
+      <created>1740757989777</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1740757989777</updated>
+      <workItem from="1740757993921" duration="104000" />
+      <workItem from="1740758591059" duration="13000" />
+      <workItem from="1740758636631" duration="367000" />
+      <workItem from="1740759026341" duration="1750000" />
+      <workItem from="1740950311437" duration="18809000" />
+      <workItem from="1740969346179" duration="6849000" />
+      <workItem from="1740977794179" duration="23000" />
+      <workItem from="1741016181783" duration="4475000" />
+      <workItem from="1741020872908" duration="773000" />
+      <workItem from="1741362300922" duration="64000" />
+      <workItem from="1741362391793" duration="9809000" />
+      <workItem from="1742327765284" duration="3322000" />
+      <workItem from="1742331162626" duration="323000" />
+      <workItem from="1742331500228" duration="19000" />
+      <workItem from="1742331529084" duration="8735000" />
+      <workItem from="1742340380611" duration="7844000" />
+      <workItem from="1742392332801" duration="10161000" />
+      <workItem from="1742402878500" duration="1295000" />
+      <workItem from="1742674579758" duration="8000" />
+    </task>
+    <task id="LOCAL-00001" summary="Optimized imports">
+      <option name="closed" value="true" />
+      <created>1740759390843</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1740759390843</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Update .venv settings">
+      <option name="closed" value="true" />
+      <created>1740759444968</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1740759444968</updated>
+    </task>
+    <task id="LOCAL-00003" summary="Fixed image selection behavior with new QStackedWidget">
+      <option name="closed" value="true" />
+      <created>1740760782350</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1740760782350</updated>
+    </task>
+    <task id="LOCAL-00004" summary="Add some very basic functionality to export timepoint data">
+      <option name="closed" value="true" />
+      <created>1740957961225</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1740957961225</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Add some very basic functionality to export timepoint data">
+      <option name="closed" value="true" />
+      <created>1740959525127</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1740959525127</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Fine-tuning sphere detection">
+      <option name="closed" value="true" />
+      <created>1740967789933</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1740967789933</updated>
+    </task>
+    <task id="LOCAL-00007" summary="updates">
+      <option name="closed" value="true" />
+      <created>1740977807031</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1740977807031</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Fixed bugs in image_set_reader related to sorting of items in self.image_list_widget">
+      <option name="closed" value="true" />
+      <created>1741018161194</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1741018161194</updated>
+    </task>
+    <task id="LOCAL-00009" summary="Fixed bugs in image_set_reader related to sorting of items in self.image_list_widget">
+      <option name="closed" value="true" />
+      <created>1741020692212</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1741020692212</updated>
+    </task>
+    <task id="LOCAL-00010" summary="Fixed bug in Excel output not being udpated to reflect manually-added blobs">
+      <option name="closed" value="true" />
+      <created>1741021619767</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1741021619767</updated>
+    </task>
+    <task id="LOCAL-00011" summary="Write functionality for outputting to XML and saves counted images - tried adding progress dialog">
+      <option name="closed" value="true" />
+      <created>1741363840777</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1741363840777</updated>
+    </task>
+    <task id="LOCAL-00012" summary="Updated GUI and started building">
+      <option name="closed" value="true" />
+      <created>1742331069114</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1742331069114</updated>
+    </task>
+    <task id="LOCAL-00013" summary="Updated GUI and started building">
+      <option name="closed" value="true" />
+      <created>1742331199698</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1742331199698</updated>
+    </task>
+    <task id="LOCAL-00014" summary="Obtained working version of program">
+      <option name="closed" value="true" />
+      <created>1742340967247</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1742340967247</updated>
+    </task>
+    <task id="LOCAL-00015" summary="Minor debugging of updates to the image list widget">
+      <option name="closed" value="true" />
+      <created>1742342128806</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1742342128806</updated>
+    </task>
+    <task id="LOCAL-00016" summary="More small debugging">
+      <option name="closed" value="true" />
+      <created>1742344091239</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1742344091239</updated>
+    </task>
+    <task id="LOCAL-00017" summary="Increased font size">
+      <option name="closed" value="true" />
+      <created>1742344109477</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1742344109477</updated>
+    </task>
+    <task id="LOCAL-00018" summary="Counted colonies for Day 17">
+      <option name="closed" value="true" />
+      <created>1742344185313</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1742344185313</updated>
+    </task>
+    <task id="LOCAL-00019" summary="Counted colonies for Day 19">
+      <option name="closed" value="true" />
+      <created>1742352472989</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1742352472989</updated>
+    </task>
+    <task id="LOCAL-00020" summary="Solve infinite recursion bug">
+      <option name="closed" value="true" />
+      <created>1742396654851</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1742396654851</updated>
+    </task>
+    <task id="LOCAL-00021" summary="Solve infinite recursion bug">
+      <option name="closed" value="true" />
+      <created>1742402955605</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1742402955605</updated>
+    </task>
+    <option name="localTasksCounter" value="22" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="com.intellij.fileTypeFactory" implementationName="*.qss" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Optimized imports" />
+    <MESSAGE value="Update .venv settings" />
+    <MESSAGE value="Fixed image selection behavior with new QStackedWidget" />
+    <MESSAGE value="Add some very basic functionality to export timepoint data" />
+    <MESSAGE value="Fine-tuning sphere detection" />
+    <MESSAGE value="updates" />
+    <MESSAGE value="Fixed bugs in image_set_reader related to sorting of items in self.image_list_widget" />
+    <MESSAGE value="Fixed bug in Excel output not being udpated to reflect manually-added blobs" />
+    <MESSAGE value="Write functionality for outputting to XML and saves counted images - tried adding progress dialog" />
+    <MESSAGE value="Updated GUI and started building" />
+    <MESSAGE value="Obtained working version of program" />
+    <MESSAGE value="Minor debugging of updates to the image list widget" />
+    <MESSAGE value="More small debugging" />
+    <MESSAGE value="Increased font size" />
+    <MESSAGE value="Counted colonies for Day 17" />
+    <MESSAGE value="Counted colonies for Day 19" />
+    <MESSAGE value="Solve infinite recursion bug" />
+    <option name="LAST_COMMIT_MESSAGE" value="Solve infinite recursion bug" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/Blob_Counter$main.coverage" NAME="main Coverage Results" MODIFIED="1740973225310" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/Blob_Counter$image_reader.coverage" NAME="image_reader Coverage Results" MODIFIED="1740961104755" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/Blob_Counter$Image_Set_Reader.coverage" NAME="Image Set Reader Coverage Results" MODIFIED="1742402794965" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="" />
+    <SUITE FILE_PATH="coverage/Blob_Counter$image_set_reader.coverage" NAME="image_set_reader Coverage Results" MODIFIED="1740972765745" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/Blob_Counter$blob_detector_ui.coverage" NAME="blob_detector_ui Coverage Results" MODIFIED="1740973333548" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/Blob_Counter$Image_Reader.coverage" NAME="Image Reader Coverage Results" MODIFIED="1742333824491" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="" />
+  </component>
+</project>
