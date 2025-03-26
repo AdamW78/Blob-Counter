@@ -249,7 +249,6 @@ class BlobDetectorLogic(QObject):
         keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
         self.keypoints.append(keypoint)
         self.undo_redo_tracker.perform_action(Action(ActionType.ADD, keypoint))
-        logging.debug("Added new keypoint")
 
     def remove_keypoint(self, keypoint):
         if keypoint and hasattr(keypoint, 'pt') and len(keypoint.pt) == 2:
@@ -299,6 +298,7 @@ class BlobDetectorLogic(QObject):
                 else:
                     self.keypoints.remove(keypoint)
             self.update_timepoint()
+            self.update_displayed_keypoints(self.keypoints)
             return True
         else:
             return False
