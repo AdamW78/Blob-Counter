@@ -363,22 +363,29 @@ class ImageSetBlobDetector(QWidget):
 
     def export_counted_images(self):
         self.save_all_keypoints_as_xml()
+        logging.info(
+            f"About to save counted images to disk, this may take a while...\".")
+        day = -1
         for timepoint in self.timepoints:
-            if timepoint is not None:
+            if timepoint is not None and timepoint.day != -1:
+                if day == -1:
+                    day = timepoint.day
                 self.save_image_with_keypoints(timepoint)
+        day_folder = os.path.join("counted_images", f"Day {day}")
+        logging.info(
+            f"SUCCESS: Images with counted keypoints saved to disk in folder: \"{os.path.join(day_folder, 'counted_images')}\".")
 
     def save_image_with_keypoints(self, timepoint):
+        day_folder = os.path.join("counted_images", f"Day {timepoint.day}")
+        os.makedirs(day_folder, exist_ok=True)
         for i in range(self.blob_detector_stack.count()):
             widget = self.blob_detector_stack.widget(i)
-            if isinstance(widget, BlobDetectorUI) and widget.blob_detector_logic.get_timepoint() == timepoint:
+            if isinstance(widget, BlobDetectorUI) and widget.blob_detector_logic.get_timepoint().filename == timepoint.filename:
                 image_with_keypoints = widget.blob_detector_logic.get_display_image()
-                day_folder = os.path.join("counted_images", f"Day {timepoint.day}")
-                os.makedirs(day_folder, exist_ok=True)
                 image_path = os.path.join(day_folder, f"{timepoint.filename=}.png") if timepoint.sample_number == -1 \
                     else os.path.join(day_folder, f"Sample_{timepoint.sample_number}.png")
                 cv2.imwrite(image_path, image_with_keypoints)  # Save without converting to BGR
                 break
-        logging.info(f"SUCCESS: Images with counted keypoints saved to disk in folder: \"{os.path.join(day_folder, 'counted_images')}\".")
 
     def save_all_keypoints_as_xml(self):
         root = ET.Element("Keypoints")

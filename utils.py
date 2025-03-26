@@ -48,6 +48,7 @@ DEFAULT_MIN_INERTIA_RATIO = 0.01 # Represented as 0.01 * 100
 DEFAULT_MIN_DIST_BETWEEN_BLOBS = 10
 DEFAULT_MIN_THRESHOLD = 100
 DEFAULT_MAX_THRESHOLD = 160
+DEFAULT_MAX_UNDO_REDO_STACK_SIZE = 50
 
 # Tooltips
 TOOLTIP_MIN_AREA = "Set the minimum area (in pixels) for a region to be considered a blob."
