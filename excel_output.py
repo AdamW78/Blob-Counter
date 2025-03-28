@@ -1,3 +1,5 @@
+import logging
+
 import openpyxl
 from openpyxl.cell import MergedCell
 
@@ -22,7 +24,7 @@ class ExcelOutput:
     def write_blob_counts(self, day_num, sample_number, num_keypoints):
         col = self.find_day_column(day_num)
         if col is None:
-            raise ValueError(f"Day {day_num} not found in the first row of the Excel sheet.")
+            logging.warn(f"Unable to find the column for day {day_num} sample #{sample_number} with {num_keypoints} keypoints in the Excel sheet. Skipping this sample...")
 
         # Find the "colonies" cell under the day_num column
         for row in self.sheet.iter_rows(min_col=col, max_col=col):

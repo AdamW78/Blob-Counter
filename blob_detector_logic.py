@@ -15,7 +15,6 @@ from utils import DEFAULT_MIN_AREA, DEFAULT_MIN_CIRCULARITY, DEFAULT_MAX_AREA, D
     DEFAULT_MAX_THRESHOLD, CIRCLE_COLOR, CIRCLE_THICKNESS, DEFAULT_DILUTION, USE_DAY, Timepoint, USE_DILUTION, \
     NEW_KEYPOINT_SIZE
 
-
 class BlobDetectorLogic(QObject):
 
     keypoints_changed = QtCore.Signal(int)
@@ -42,8 +41,7 @@ class BlobDetectorLogic(QObject):
             self.convert_to_grayscale()
             self.custom_name = self.get_custom_name()
             self.update_timepoint()
-        self.new_keypoints = []
-        self.removed_keypoints = []
+        self.new_keypoint_size = NEW_KEYPOINT_SIZE  # Default size for new keypoints
 
     def load_image(self):
         self.image = cv2.imread(self.image_path, 1)
@@ -234,19 +232,11 @@ class BlobDetectorLogic(QObject):
             cv2.circle(image_with_keypoints, (int(x), int(y)), radius, CIRCLE_COLOR, CIRCLE_THICKNESS)
         return image_with_keypoints
 
-    def update_display_image(self):
-        if self.new_keypoints:
-            for keypoint in self.new_keypoints:
-                x, y = keypoint.pt
-                radius = int(keypoint.size / 2)
-                cv2.circle(self.image, (int(x), int(y)), radius, CIRCLE_COLOR, CIRCLE_THICKNESS)
-            self.new_keypoints = []
-
     def get_keypoint_count(self):
         return len(self.keypoints)
 
     def add_keypoint(self, x, y):
-        keypoint = cv2.KeyPoint(x, y, NEW_KEYPOINT_SIZE)
+        keypoint = cv2.KeyPoint(x, y, self.new_keypoint_size)
         self.keypoints.append(keypoint)
         self.undo_redo_tracker.perform_action(Action(ActionType.ADD, keypoint))
 
@@ -302,3 +292,13 @@ class BlobDetectorLogic(QObject):
             return True
         else:
             return False
+
+    def adjust_keypoint_radius(self, adjustment: int):
+        """
+        Adjust the size of newly added keypoints by a specified adjustment value.
+        :param adjustment:
+            The value to adjust the size of newly added keypoints.
+            Positive values will increase the size, negative values will decrease it.
+        :param adjustment: Integer value by which to adjust the size of newly added keypoints.
+        """
+        self.new_keypoint_size += adjustment

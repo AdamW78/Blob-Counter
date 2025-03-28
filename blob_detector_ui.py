@@ -1,3 +1,5 @@
+import logging
+
 import cv2
 from PySide6.QtCore import Qt, QEvent, Signal, QPointF
 from PySide6.QtGui import QImage, QPixmap, QWheelEvent, QKeyEvent, QIcon, QMouseEvent
@@ -5,7 +7,8 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QCheckB
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGestureEvent, QGesture, QApplication
 
 from ui_utils import UIUtils
-from utils import GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT, MIN_SCALE_FACTOR, MAX_SCALE_FACTOR
+from utils import GRAPHICS_VIEW_WIDTH, GRAPHICS_VIEW_HEIGHT, MIN_SCALE_FACTOR, MAX_SCALE_FACTOR, \
+    DEFAULT_KEYPOINT_SIZE_ADJUSTMENT_STEP
 
 TOUCHSCREEN_MODE = False
 
@@ -165,7 +168,7 @@ class BlobDetectorUI(QWidget):
             return self.handle_mouse_event(event)
         if event.type() == QEvent.Type.Wheel:
             event = event if isinstance(event, QWheelEvent) else None
-            self.handle_wheel_zoom(event)
+            self.handle_wheel_event(event)
             return True
         if event.type() == QEvent.Type.KeyPress:
             event = event if isinstance(event, QKeyEvent) else None
@@ -176,6 +179,30 @@ class BlobDetectorUI(QWidget):
                 if event.key() == Qt.Key.Key_Z:
                     return self.blob_detector_logic.handle_undo_redo(event)
         return super().eventFilter(source, event)
+
+    def handle_wheel_event(self, event: QWheelEvent) -> bool:
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier or event.modifiers() & Qt.KeyboardModifier.MetaModifier:
+            # Handle adjusting radius of added keypoints with the mouse wheel
+            return self.handle_keypoint_radius_adjustment(event)
+        else:
+            # Handle zooming with the wheel
+            return self.handle_wheel_zoom(event)
+
+    def handle_keypoint_radius_adjustment(self, event: QWheelEvent) -> bool:
+        # Adjust the radius of the keypoints using the mouse wheel while holding Ctrl or Meta
+        if self.blob_detector_logic is None:
+            return False
+        if event.angleDelta().y() > 0:
+            # Scroll up, increase radius
+            self.blob_detector_logic.adjust_keypoint_radius(DEFAULT_KEYPOINT_SIZE_ADJUSTMENT_STEP)
+            logging.debug("Increased keypoint radius by %s for new manually added keypoints, new radius: %s",
+                          DEFAULT_KEYPOINT_SIZE_ADJUSTMENT_STEP, self.blob_detector_logic.new_keypoint_size)
+        else:
+            # Scroll down, decrease radius
+            logging.debug("Decreased keypoint radius by %s for new manually added keypoints, new radius: %s",
+                          DEFAULT_KEYPOINT_SIZE_ADJUSTMENT_STEP, self.blob_detector_logic.new_keypoint_size)
+            self.blob_detector_logic.adjust_keypoint_radius(-DEFAULT_KEYPOINT_SIZE_ADJUSTMENT_STEP)
+        return True
 
     def handle_wheel_zoom(self, event: QWheelEvent) -> bool:
         zoom_in_factor = 1.1
@@ -202,12 +229,13 @@ class BlobDetectorUI(QWidget):
             elif event.key() == Qt.Key.Key_Minus:
                 zoom_factor = zoom_out_factor
             else:
-                return
-
+                return False
             new_scale_factor = self.current_scale_factor * zoom_factor
             if MIN_SCALE_FACTOR <= new_scale_factor <= MAX_SCALE_FACTOR:
                 self.graphics_view.scale(zoom_factor, zoom_factor)
                 self.current_scale_factor = new_scale_factor
+                return True
+        return False
 
     def handle_pinch_gesture(self, gesture: QGesture) -> bool:
         if gesture is None or gesture.gestureType() is not Qt.GestureType.PinchGesture:

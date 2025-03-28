@@ -49,6 +49,7 @@ DEFAULT_MIN_DIST_BETWEEN_BLOBS = 10
 DEFAULT_MIN_THRESHOLD = 100
 DEFAULT_MAX_THRESHOLD = 160
 DEFAULT_MAX_UNDO_REDO_STACK_SIZE = 50
+DEFAULT_KEYPOINT_SIZE_ADJUSTMENT_STEP = 1 # Step size for increasing/decreasing manually added keypoint size
 
 # Tooltips
 TOOLTIP_MIN_AREA = "Set the minimum area (in pixels) for a region to be considered a blob."
