@@ -80,3 +80,4 @@ fabric.properties
 /build/
 /dist/
 /~$Arginine CLS with pH BLOB_DETECTOR.xlsx
+counted_images/Day */*.png
